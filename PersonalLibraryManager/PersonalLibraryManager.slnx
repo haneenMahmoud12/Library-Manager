@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PersonalLibrary.Api/PersonalLibrary.Api.csproj" />
+    <Project Path="src/PersonalLibrary.Application/PersonalLibrary.Application.csproj" />
+    <Project Path="src/PersonalLibrary.Domain/PersonalLibrary.Domain.csproj" />
+    <Project Path="src/PersonalLibrary.Infrastructure/PersonalLibrary.Infrastructure.csproj" />
+    <Project Path="src/PersonalLibrary.Mobile/PersonalLibrary.Mobile.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PersonalLibrary.ArchitectureTests/PersonalLibrary.ArchitectureTests.csproj" />
+    <Project Path="tests/PersonalLibrary.IntegrationTests/PersonalLibrary.IntegrationTests.csproj" />
+    <Project Path="tests/PersonalLibrary.UnitTests/PersonalLibrary.UnitTests.csproj" />
+  </Folder>
+</Solution>

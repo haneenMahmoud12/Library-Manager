@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PersonalLibrary.Application\PersonalLibrary.Application.csproj" />
+    <ProjectReference Include="..\PersonalLibrary.Domain\PersonalLibrary.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
