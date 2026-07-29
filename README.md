@@ -93,7 +93,7 @@ Track books lent to friends or family, including borrower and return information
 * **C# / .NET**
 * **ASP.NET Core Web API**
 * **Entity Framework Core**
-* **PostgreSQL**
+* **SQL**
 
 ### Mobile
 
