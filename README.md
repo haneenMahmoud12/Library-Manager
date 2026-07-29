@@ -2,7 +2,7 @@
 
 A mobile-first personal library management application built with **.NET** that helps users catalogue and manage their physical book collections with minimal manual data entry.
 
-The project was inspired by a simple problem: **forgetting whether you already own a book and accidentally buying it again.**
+The project was inspired by a simple problem: **forgetting whether you already own a book and accidentally buying it again.** This problem is faced by many readers who own a huge amount of books (100+ books).
 
 Instead of manually entering hundreds of books, users can scan a book's ISBN barcode to automatically identify it, retrieve its metadata, check for duplicates, and add it to their library.
 
