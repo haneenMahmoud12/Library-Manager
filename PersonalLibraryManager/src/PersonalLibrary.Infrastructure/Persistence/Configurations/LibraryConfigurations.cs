@@ -86,7 +86,7 @@ public sealed class BookCopyConfiguration : IEntityTypeConfiguration<BookCopy>
 
         builder.HasOne(x => x.Library).WithMany(x => x.BookCopies)
             .HasForeignKey(x => x.LibraryId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne(x => x.BookEdition).WithMany(x => x.BookCopies)
+        builder.HasOne(x => x.BookEdition).WithMany()
             .HasForeignKey(x => x.BookEditionId)
             .OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Location).WithMany(x => x.BookCopies)

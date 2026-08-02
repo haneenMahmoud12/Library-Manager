@@ -17,12 +17,11 @@
 
   <ItemGroup>
     <Folder Include="Books\" />
-    <Folder Include="Identity\" />
     <Folder Include="Imports\" />
     <Folder Include="Libraries\" />
     <Folder Include="Loans\" />
     <Folder Include="Authentication\" />
-    <Folder Include="Persistence\" />
+    <Folder Include="Persistence\Repositories\" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,7 +1,6 @@
 using PersonalLibrary.Domain.Catalog;
 using PersonalLibrary.Domain.Catalog.Enums;
 using PersonalLibrary.Domain.Common;
-using PersonalLibrary.Domain.Loans;
 
 namespace PersonalLibrary.Domain.Libraries;
 
@@ -24,5 +23,4 @@ public class BookCopy : AuditableEntity
     public virtual Library Library { get; set; } = null!;
     public virtual BookEdition BookEdition { get; set; } = null!;
     public virtual LibraryLocation? Location { get; set; }
-    public virtual ICollection<Loan> Loans { get; set; } = [];
 }

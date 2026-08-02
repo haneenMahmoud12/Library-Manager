@@ -3,8 +3,13 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using PersonalLibrary.Application.Identity.Services;
+using PersonalLibrary.Application.Persistence;
+using PersonalLibrary.Application.Persistence.IRepositories;
 using PersonalLibrary.Infrastructure.Identity;
+using PersonalLibrary.Infrastructure.Identity.Services;
 using PersonalLibrary.Infrastructure.Persistence;
+using PersonalLibrary.Infrastructure.Persistence.Repositories;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -24,6 +29,9 @@ namespace PersonalLibrary.Infrastructure
 
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(connectionString));
+
+            services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             services.AddDataProtection();
 
@@ -50,6 +58,8 @@ namespace PersonalLibrary.Infrastructure
                 .AddEntityFrameworkStores<ApplicationDbContext>()
                 .AddSignInManager()
                 .AddDefaultTokenProviders();
+
+            services.AddScoped<IIdentityService, IdentityService>();
 
             return services;
         }

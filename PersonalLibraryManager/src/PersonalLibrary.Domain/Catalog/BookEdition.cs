@@ -1,5 +1,4 @@
 using PersonalLibrary.Domain.Common;
-using PersonalLibrary.Domain.Libraries;
 
 namespace PersonalLibrary.Domain.Catalog;
 
@@ -18,5 +17,4 @@ public class BookEdition : AuditableEntity
 
     public virtual Book Book { get; set; } = null!;
     public virtual Publisher? Publisher { get; set; }
-    public virtual ICollection<BookCopy> BookCopies { get; set; } = [];
 }

@@ -70,4 +70,11 @@
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Folder Include="Features\Books\ViewModels\" />
+	  <Folder Include="Features\Books\Views\" />
+	  <Folder Include="Features\Libraries\ViewModels\" />
+	  <Folder Include="Features\Libraries\Views\" />
+	</ItemGroup>
+
 </Project>

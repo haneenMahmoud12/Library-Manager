@@ -11,12 +11,25 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Folder Include="Libraries\" />
-		<Folder Include="Books\" />
-		<Folder Include="Identity\" />
-		<Folder Include="Imports\" />
-		<Folder Include="Loans\" />
-		<Folder Include="Common\" />
+		<Folder Include="Books\Commands\" />
+		<Folder Include="Books\Queries\" />
+		<Folder Include="Books\Repositories\" />
+		<Folder Include="Books\Services\" />
+		<Folder Include="Common\Services\" />
+		<Folder Include="Identity\Queries\" />
+		<Folder Include="Identity\Repositories\" />
+		<Folder Include="Imports\Commands\" />
+		<Folder Include="Imports\Queries\" />
+		<Folder Include="Imports\Repositories\" />
+		<Folder Include="Imports\Services\" />
+		<Folder Include="Libraries\Commands\" />
+		<Folder Include="Libraries\Queries\" />
+		<Folder Include="Libraries\Repositories\" />
+		<Folder Include="Libraries\Services\" />
+		<Folder Include="Loans\Commands\" />
+		<Folder Include="Loans\Queries\" />
+		<Folder Include="Loans\Repositories\" />
+		<Folder Include="Loans\Services\" />
 	</ItemGroup>
 
 </Project>

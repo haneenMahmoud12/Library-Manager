@@ -25,7 +25,7 @@ public sealed class LoanConfiguration : IEntityTypeConfiguration<Loan>
         builder.HasIndex(x => x.BorrowerUserId);
         builder.HasIndex(x => x.Status);
 
-        builder.HasOne(x => x.BookCopy).WithMany(x => x.Loans)
+        builder.HasOne(x => x.BookCopy).WithMany()
             .HasForeignKey(x => x.BookCopyId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ApplicationUser>().WithMany()
             .HasForeignKey(x => x.LentByUserId).OnDelete(DeleteBehavior.Restrict);
