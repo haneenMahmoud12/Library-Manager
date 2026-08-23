@@ -1,5 +1,4 @@
-# Project documentation and local Visual Studio state
-docs/
+# Local Visual Studio state
 .vs/
 
 # .NET build outputs
