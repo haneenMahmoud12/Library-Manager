@@ -2,9 +2,11 @@ using System.ComponentModel.DataAnnotations;
 using PersonalLibrary.Application.Identity.Exceptions;
 using PersonalLibrary.Application.Identity.Services;
 
-namespace PersonalLibrary.Application.Identity.Commands;
+namespace PersonalLibrary.Application.Identity.Commands.Register;
 
-public sealed class RegisterUserHandler(IIdentityService identityService)
+public sealed class RegisterUserHandler(
+    IIdentityService identityService,
+    IEmailService emailService)
     : IRegisterUserHandler
 {
     private static readonly EmailAddressAttribute EmailValidator = new();
@@ -38,6 +40,12 @@ public sealed class RegisterUserHandler(IIdentityService identityService)
                 [new("InvalidPassword", "Password is required and cannot exceed 128 characters.")]);
         }
 
+        if(command.Password != command.ConfirmPassword)
+        {
+            throw new RegistrationValidationException(
+                [new("PasswordMismatch", "Password and confirmation do not match.")]);
+        }
+
         var creation = await identityService.CreateUserAsync(
             email,
             command.Password,
@@ -46,6 +54,14 @@ public sealed class RegisterUserHandler(IIdentityService identityService)
 
         if (!creation.Succeeded)
             throw new RegistrationValidationException(creation.Errors);
+
+        var challenge = await identityService.CreateEmailConfirmationChallengeAsync(
+            creation.Email!,
+            cancellationToken)
+            ?? throw new InvalidOperationException(
+                "The email confirmation challenge could not be created.");
+
+        await emailService.SendConfirmationEmailAsync(challenge, cancellationToken);
 
         return new RegisterUserResult(
             creation.UserId!.Value,

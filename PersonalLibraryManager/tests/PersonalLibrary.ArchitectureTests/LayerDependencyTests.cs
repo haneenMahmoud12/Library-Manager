@@ -1,4 +1,4 @@
-using PersonalLibrary.Application.Identity.Commands;
+using PersonalLibrary.Application.Identity.Commands.Register;
 using PersonalLibrary.Domain.Common;
 using PersonalLibrary.Infrastructure.Persistence;
 

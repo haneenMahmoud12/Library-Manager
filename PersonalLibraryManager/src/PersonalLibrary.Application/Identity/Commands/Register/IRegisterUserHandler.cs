@@ -1,4 +1,4 @@
-namespace PersonalLibrary.Application.Identity.Commands;
+namespace PersonalLibrary.Application.Identity.Commands.Register;
 
 public interface IRegisterUserHandler
 {

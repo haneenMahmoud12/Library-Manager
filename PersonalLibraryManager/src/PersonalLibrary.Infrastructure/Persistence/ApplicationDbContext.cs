@@ -4,6 +4,7 @@ using PersonalLibrary.Domain.Catalog;
 using PersonalLibrary.Domain.Libraries;
 using PersonalLibrary.Domain.Loans;
 using PersonalLibrary.Domain.Social;
+using PersonalLibrary.Infrastructure.Authentication;
 using PersonalLibrary.Infrastructure.Identity;
 
 namespace PersonalLibrary.Infrastructure.Persistence
@@ -28,6 +29,7 @@ namespace PersonalLibrary.Infrastructure.Persistence
         public DbSet<LibraryLocation> LibraryLocations => Set<LibraryLocation>();
         public DbSet<Loan> Loans => Set<Loan>();
         public DbSet<UserFriend> UserFriends => Set<UserFriend>();
+        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
