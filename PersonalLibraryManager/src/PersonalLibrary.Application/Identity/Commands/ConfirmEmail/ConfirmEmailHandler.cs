@@ -4,7 +4,6 @@ using PersonalLibrary.Application.Identity.Services;
 namespace PersonalLibrary.Application.Identity.Commands.ConfirmEmail;
 
 public sealed class ConfirmEmailHandler(IIdentityService identityService)
-    : IConfirmEmailHandler
 {
     public async Task HandleAsync(
         ConfirmEmailCommand command,

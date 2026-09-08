@@ -7,9 +7,10 @@ using System.Reflection;
 
 namespace PersonalLibrary.Infrastructure.Persistence.Repositories;
 
-internal sealed class Repository<T>(ApplicationDbContext context)
+internal class Repository<T>(ApplicationDbContext context)
     : IRepository<T> where T : AuditableEntity
 {
+    protected ApplicationDbContext Context { get; } = context;
     private readonly DbSet<T> _entities = context.Set<T>();
 
     public ValueTask<T?> GetByIdAsync(

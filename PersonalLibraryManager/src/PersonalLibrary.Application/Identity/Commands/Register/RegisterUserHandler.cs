@@ -7,7 +7,6 @@ namespace PersonalLibrary.Application.Identity.Commands.Register;
 public sealed class RegisterUserHandler(
     IIdentityService identityService,
     IEmailService emailService)
-    : IRegisterUserHandler
 {
     private static readonly EmailAddressAttribute EmailValidator = new();
 
@@ -40,7 +39,7 @@ public sealed class RegisterUserHandler(
                 [new("InvalidPassword", "Password is required and cannot exceed 128 characters.")]);
         }
 
-        if(command.Password != command.ConfirmPassword)
+        if (command.Password != command.ConfirmPassword)
         {
             throw new RegistrationValidationException(
                 [new("PasswordMismatch", "Password and confirmation do not match.")]);

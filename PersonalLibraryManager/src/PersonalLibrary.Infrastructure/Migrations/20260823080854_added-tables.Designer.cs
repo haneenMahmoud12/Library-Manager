@@ -13,7 +13,7 @@ namespace PersonalLibrary.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
     [Migration("20260823080854_added-tables")]
-    partial class addedtables
+    partial class AddedTables
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

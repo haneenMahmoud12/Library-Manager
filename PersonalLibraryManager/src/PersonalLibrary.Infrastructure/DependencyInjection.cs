@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using PersonalLibrary.Application.Catalog.Repositories;
 using PersonalLibrary.Application.Identity.Services;
+using PersonalLibrary.Application.Libraries.Repositories;
 using PersonalLibrary.Application.Persistence;
 using PersonalLibrary.Application.Persistence.IRepositories;
 using PersonalLibrary.Infrastructure.Authentication;
@@ -35,6 +37,8 @@ public static class DependencyInjection
             configuration.GetSection(SmtpEmailOptions.SectionName));
 
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+        services.AddScoped<ILibraryRepository, LibraryRepository>();
+        services.AddScoped<ICatalogRepository, CatalogRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<ITokenService, JwtTokenService>();

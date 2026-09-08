@@ -5,7 +5,6 @@ using PersonalLibrary.Application.Identity.Services;
 namespace PersonalLibrary.Application.Identity.Commands.RefreshToken;
 
 public sealed class RefreshTokenHandler(ITokenService tokenService)
-    : IRefreshTokenHandler
 {
     public async Task<TokenPairResult> HandleAsync(
         RefreshTokenCommand command,

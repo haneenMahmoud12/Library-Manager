@@ -11,10 +11,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Folder Include="Books\Commands\" />
-		<Folder Include="Books\Queries\" />
-		<Folder Include="Books\Repositories\" />
-		<Folder Include="Books\Services\" />
+		<Folder Include="Catalog\Commands\AddBookManually\" />
+		<Folder Include="Catalog\Queries\" />
+		<Folder Include="Catalog\Services\" />
 		<Folder Include="Common\Services\" />
 		<Folder Include="Identity\Queries\" />
 		<Folder Include="Identity\Repositories\" />
@@ -22,9 +21,6 @@
 		<Folder Include="Imports\Queries\" />
 		<Folder Include="Imports\Repositories\" />
 		<Folder Include="Imports\Services\" />
-		<Folder Include="Libraries\Commands\" />
-		<Folder Include="Libraries\Queries\" />
-		<Folder Include="Libraries\Repositories\" />
 		<Folder Include="Libraries\Services\" />
 		<Folder Include="Loans\Commands\" />
 		<Folder Include="Loans\Queries\" />

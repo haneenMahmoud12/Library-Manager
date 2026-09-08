@@ -5,7 +5,6 @@ namespace PersonalLibrary.Application.Identity.Commands.ResendConfirmation;
 public sealed class ResendConfirmationHandler(
     IIdentityService identityService,
     IEmailService emailService)
-    : IResendConfirmationHandler
 {
     public async Task HandleAsync(
         ResendConfirmationCommand command,

@@ -1,23 +1,36 @@
-using System.Security.Claims;
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-using PersonalLibrary.Api.ExceptionHandling;
+using Microsoft.OpenApi;
+using PersonalLibrary.Api.Authentication;
+using PersonalLibrary.Api.Contracts.Common;
+using PersonalLibrary.Api.Middleware;
+using PersonalLibrary.Application.Common.Authentication;
 using PersonalLibrary.Application.Identity.Commands.ConfirmEmail;
 using PersonalLibrary.Application.Identity.Commands.Login;
 using PersonalLibrary.Application.Identity.Commands.RefreshToken;
 using PersonalLibrary.Application.Identity.Commands.Register;
 using PersonalLibrary.Application.Identity.Commands.ResendConfirmation;
+using PersonalLibrary.Application.Libraries.Commands.CreateLibrary;
+using PersonalLibrary.Application.Libraries.Commands.UpdateLibrary;
+using PersonalLibrary.Application.Libraries.Queries.GetMyLibraries;
 using PersonalLibrary.Infrastructure;
+using System.Security.Claims;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddScoped<IRegisterUserHandler, RegisterUserHandler>();
-builder.Services.AddScoped<ILoginHandler, LoginUserHandler>();
-builder.Services.AddScoped<IConfirmEmailHandler, ConfirmEmailHandler>();
-builder.Services.AddScoped<IRefreshTokenHandler, RefreshTokenHandler>();
-builder.Services.AddScoped<IResendConfirmationHandler, ResendConfirmationHandler>();
+builder.Services.AddScoped<RegisterUserHandler>();
+builder.Services.AddScoped<LoginUserHandler>();
+builder.Services.AddScoped<ConfirmEmailHandler>();
+builder.Services.AddScoped<RefreshTokenHandler>();
+builder.Services.AddScoped<ResendConfirmationHandler>();
+builder.Services.AddScoped<CreateLibraryHandler>();
+builder.Services.AddScoped<UpdateLibraryHandler>();
+builder.Services.AddScoped<GetMyLibrariesHandler>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -44,26 +57,109 @@ builder.Services
                     : [new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey))];
             }
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnChallenge = context =>
+            {
+                context.HandleResponse();
+                return WriteFailureResponseAsync(
+                    context.HttpContext,
+                    StatusCodes.Status401Unauthorized,
+                    "Unauthorized",
+                    "A valid access token is required.");
+            },
+            OnForbidden = context => WriteFailureResponseAsync(
+                context.HttpContext,
+                StatusCodes.Status403Forbidden,
+                "Forbidden",
+                "You do not have permission to access this resource.")
+        };
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<RegistrationValidationExceptionHandler>();
-builder.Services.AddExceptionHandler<AuthenticationFlowExceptionHandler>();
-builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+builder.Services
+    .AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var details = context.ModelState
+                .Where(entry => entry.Value?.Errors.Count > 0)
+                .ToDictionary(
+                    entry => entry.Key,
+                    entry => entry.Value!.Errors
+                        .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                            ? "The supplied value is invalid."
+                            : error.ErrorMessage)
+                        .ToArray());
+
+            return new BadRequestObjectResult(ApiResponse.Failed(
+                "ValidationFailed",
+                "One or more validation errors occurred.",
+                details,
+                context.HttpContext.TraceIdentifier));
+        };
+    });
+
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "Enter the JWT access token returned by the login endpoint."
+    });
+
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("bearer", document)] = []
+    });
+});
 
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
-app.UseExceptionHandler();
+app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseStatusCodePages(async context =>
+{
+    var (code, message) = context.HttpContext.Response.StatusCode switch
+    {
+        StatusCodes.Status404NotFound => ("NotFound", "The requested endpoint was not found."),
+        StatusCodes.Status405MethodNotAllowed => ("MethodNotAllowed", "The HTTP method is not allowed."),
+        _ => ("RequestFailed", "The request could not be completed.")
+    };
+
+    await WriteFailureResponseAsync(
+        context.HttpContext,
+        context.HttpContext.Response.StatusCode,
+        code,
+        message);
+});
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static Task WriteFailureResponseAsync(
+    HttpContext context,
+    int statusCode,
+    string code,
+    string message)
+{
+    if (context.Response.HasStarted)
+        return Task.CompletedTask;
+
+    context.Response.StatusCode = statusCode;
+    context.Response.ContentType = "application/json";
+    return context.Response.WriteAsJsonAsync(
+        ApiResponse.Failed(code, message, traceId: context.TraceIdentifier),
+        context.RequestAborted);
+}

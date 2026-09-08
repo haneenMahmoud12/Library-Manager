@@ -7,7 +7,6 @@ namespace PersonalLibrary.Application.Identity.Commands.Login;
 public sealed class LoginUserHandler(
     IIdentityService identityService,
     ITokenService tokenService)
-    : ILoginHandler
 {
     private static readonly EmailAddressAttribute EmailValidator = new();
 

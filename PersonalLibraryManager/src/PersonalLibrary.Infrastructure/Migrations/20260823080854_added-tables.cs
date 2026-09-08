@@ -5,7 +5,7 @@
 namespace PersonalLibrary.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class addedtables : Migration
+    public partial class AddedTables : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

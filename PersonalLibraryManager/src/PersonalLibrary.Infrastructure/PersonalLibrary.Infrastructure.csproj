@@ -21,7 +21,6 @@
     <Folder Include="Libraries\" />
     <Folder Include="Loans\" />
     <Folder Include="Authentication\" />
-    <Folder Include="Persistence\Repositories\" />
   </ItemGroup>
 
   <ItemGroup>
