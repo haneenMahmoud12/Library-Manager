@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using PersonalLibrary.Application.Abstractions;
 using PersonalLibrary.Application.Common.Pagination;
-using PersonalLibrary.Application.Libraries.Queries.GetMyLibraries;
-using PersonalLibrary.Application.Libraries.Repositories;
+using PersonalLibrary.Application.Libraries.Models;
 using PersonalLibrary.Domain.Libraries;
 
 namespace PersonalLibrary.Infrastructure.Persistence.Repositories;
@@ -18,7 +18,16 @@ internal sealed class LibraryRepository(ApplicationDbContext context)
                 library => library.Id == libraryId,
                 cancellationToken);
 
-    public async Task<PagedResult<GetMyLibrariesResult>> GetUserLibrariesAsync(
+    public Task<Library?> GetByIdWithDetailsAsync(
+        Guid libraryId,
+        CancellationToken cancellationToken = default) =>
+        Context.Libraries
+            .AsNoTracking()
+            .Include(library => library.Members)
+            .Include(library => library.BookCopies)
+            .SingleOrDefaultAsync(library => library.Id == libraryId, cancellationToken);
+
+    public async Task<PagedResult<LibraryListItemViewModel>> GetUserLibrariesAsync(
         Guid userId,
         PageRequest page,
         CancellationToken cancellationToken = default)
@@ -41,7 +50,7 @@ internal sealed class LibraryRepository(ApplicationDbContext context)
         var items = await ApplyOrdering(libraries, page, userId)
             .Skip(page.Offset)
             .Take(page.PageSize)
-            .Select(library => new GetMyLibrariesResult(
+            .Select(library => new LibraryListItemViewModel(
                 library.Id,
                 library.Name,
                 library.Description,
@@ -56,7 +65,7 @@ internal sealed class LibraryRepository(ApplicationDbContext context)
                 library.UpdatedAt))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<GetMyLibrariesResult>(
+        return new PagedResult<LibraryListItemViewModel>(
             items,
             page.PageNumber,
             page.PageSize,

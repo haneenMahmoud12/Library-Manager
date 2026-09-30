@@ -1,11 +1,10 @@
 using System.Data;
+using PersonalLibrary.Application.Abstractions;
 using PersonalLibrary.Application.Common.Authentication;
 using PersonalLibrary.Application.Common.Pagination;
-using PersonalLibrary.Application.Libraries.Commands.CreateLibrary;
+using PersonalLibrary.Application.Libraries;
 using PersonalLibrary.Application.Libraries.Exceptions;
-using PersonalLibrary.Application.Libraries.Queries.GetMyLibraries;
-using PersonalLibrary.Application.Libraries.Repositories;
-using PersonalLibrary.Application.Persistence;
+using PersonalLibrary.Application.Libraries.Models;
 using PersonalLibrary.Domain.Libraries;
 using PersonalLibrary.Domain.Libraries.Enums;
 
@@ -19,16 +18,16 @@ public sealed class CreateLibraryHandlerTests
         var userId = Guid.NewGuid();
         var repository = new StubLibraryRepository();
         var unitOfWork = new StubUnitOfWork();
-        var handler = new CreateLibraryHandler(
+        var service = new LibraryService(
             repository,
             unitOfWork,
             new StubCurrentUserContext(userId));
 
-        var result = await handler.HandleAsync(
-            new CreateLibraryCommand("  Home Library  ", "  My books  "));
+        var result = await service.SaveAsync(
+            new CreateLibraryDto("  Home Library  ", "  My books  ", null));
 
         var library = Assert.IsType<Library>(repository.Added);
-        Assert.Equal(result.LibraryId, library.Id);
+        Assert.Equal(result.Id, library.Id);
         Assert.Equal("Home Library", library.Name);
         Assert.Equal("My books", library.Description);
         Assert.Equal(LibraryVisibility.Private, library.Visibility);
@@ -46,13 +45,13 @@ public sealed class CreateLibraryHandlerTests
     public async Task HandleAsync_accepts_a_named_visibility()
     {
         var repository = new StubLibraryRepository();
-        var handler = new CreateLibraryHandler(
+        var service = new LibraryService(
             repository,
             new StubUnitOfWork(),
             new StubCurrentUserContext(Guid.NewGuid()));
 
-        var result = await handler.HandleAsync(
-            new CreateLibraryCommand("Shared", null, "MembersOnly"));
+        var result = await service.SaveAsync(
+            new CreateLibraryDto("Shared", null, "MembersOnly"));
 
         Assert.Equal(LibraryVisibility.MembersOnly, result.Visibility);
         Assert.Equal(LibraryVisibility.MembersOnly, repository.Added!.Visibility);
@@ -63,13 +62,13 @@ public sealed class CreateLibraryHandlerTests
     {
         var repository = new StubLibraryRepository();
         var unitOfWork = new StubUnitOfWork();
-        var handler = new CreateLibraryHandler(
+        var service = new LibraryService(
             repository,
             unitOfWork,
             new StubCurrentUserContext(Guid.NewGuid()));
 
         await Assert.ThrowsAsync<LibraryValidationException>(() =>
-            handler.HandleAsync(new CreateLibraryCommand(" ", null)));
+            service.SaveAsync(new CreateLibraryDto(" ", null, null)));
 
         Assert.Null(repository.Added);
         Assert.Equal(0, unitOfWork.SaveCalls);
@@ -78,13 +77,13 @@ public sealed class CreateLibraryHandlerTests
     [Fact]
     public async Task HandleAsync_requires_an_authenticated_user()
     {
-        var handler = new CreateLibraryHandler(
+        var service = new LibraryService(
             new StubLibraryRepository(),
             new StubUnitOfWork(),
             new StubCurrentUserContext(null));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            handler.HandleAsync(new CreateLibraryCommand("Home", null)));
+            service.SaveAsync(new CreateLibraryDto("Home", null, null)));
     }
 
     private sealed class StubCurrentUserContext(Guid? userId) : ICurrentUserContext
@@ -103,7 +102,12 @@ public sealed class CreateLibraryHandlerTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<PagedResult<GetMyLibrariesResult>> GetUserLibrariesAsync(
+        public Task<Library?> GetByIdWithDetailsAsync(
+            Guid libraryId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PagedResult<LibraryListItemViewModel>> GetUserLibrariesAsync(
             Guid userId,
             PageRequest page,
             CancellationToken cancellationToken = default) =>

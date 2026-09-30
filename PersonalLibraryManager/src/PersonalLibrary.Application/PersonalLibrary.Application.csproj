@@ -11,17 +11,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Folder Include="Catalog\Commands\AddBookManually\" />
-		<Folder Include="Catalog\Queries\" />
-		<Folder Include="Catalog\Services\" />
 		<Folder Include="Common\Services\" />
-		<Folder Include="Identity\Queries\" />
 		<Folder Include="Identity\Repositories\" />
 		<Folder Include="Imports\Commands\" />
 		<Folder Include="Imports\Queries\" />
 		<Folder Include="Imports\Repositories\" />
 		<Folder Include="Imports\Services\" />
-		<Folder Include="Libraries\Services\" />
 		<Folder Include="Loans\Commands\" />
 		<Folder Include="Loans\Queries\" />
 		<Folder Include="Loans\Repositories\" />

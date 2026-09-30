@@ -3,55 +3,50 @@ using Microsoft.AspNetCore.Mvc;
 using PersonalLibrary.Api.Contracts.Common;
 using PersonalLibrary.Api.Contracts.Libraries;
 using PersonalLibrary.Application.Common.Pagination;
-using PersonalLibrary.Application.Libraries.Commands.CreateLibrary;
-using PersonalLibrary.Application.Libraries.Commands.UpdateLibrary;
-using PersonalLibrary.Application.Libraries.Queries.GetMyLibraries;
+using PersonalLibrary.Application.Libraries.Models;
+using PersonalLibrary.Application.Libraries.Services;
 
 namespace PersonalLibrary.Api.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("api/libraries")]
-public sealed class LibrariesController(
-    CreateLibraryHandler createLibrary,
-    UpdateLibraryHandler updateLibrary,
-    GetMyLibrariesHandler getMyLibraries)
-    : ControllerBase
+public sealed class LibrariesController(ILibraryService libraryService) : ControllerBase
 {
     [HttpPost]
-    [ProducesResponseType<ApiResponse<CreateLibraryResult>>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ApiResponse<LibraryViewModel>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<ApiResponse<CreateLibraryResult>>> Create(
+    public async Task<ActionResult<ApiResponse<LibraryViewModel>>> Create(
         CreateLibraryRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await createLibrary.HandleAsync(
-            new CreateLibraryCommand(
+        var result = await libraryService.SaveAsync(
+            new CreateLibraryDto(
                 request.Name,
                 request.Description,
                 request.Visibility),
             cancellationToken);
 
         return Created(
-            $"/api/libraries/{result.LibraryId}",
+            $"/api/libraries/{result.Id}",
             ApiResponse.Succeeded(result, "Library created."));
     }
 
     [HttpPatch("{libraryId:guid}")]
-    [ProducesResponseType<ApiResponse<UpdateLibraryResult>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<LibraryViewModel>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<UpdateLibraryResult>>> Update(
+    public async Task<ActionResult<ApiResponse<LibraryViewModel>>> Update(
         Guid libraryId,
         UpdateLibraryRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await updateLibrary.HandleAsync(
-            new UpdateLibraryCommand(
-                libraryId,
+        var result = await libraryService.SaveAsync(
+            libraryId,
+            new UpdateLibraryDto(
                 request.Name,
                 request.Description,
                 request.Visibility),
@@ -61,10 +56,10 @@ public sealed class LibrariesController(
     }
 
     [HttpGet]
-    [ProducesResponseType<ApiResponse<PagedResult<GetMyLibrariesResult>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<PagedResult<LibraryListItemViewModel>>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<ApiResponse<PagedResult<GetMyLibrariesResult>>>> GetMyLibraries(
+    public async Task<ActionResult<ApiResponse<PagedResult<LibraryListItemViewModel>>>> GetMyLibraries(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = PageRequest.DefaultPageSize,
         [FromQuery] string? searchText = null,
@@ -78,10 +73,20 @@ public sealed class LibrariesController(
             searchText,
             orderBy,
             orderDirection);
-        var result = await getMyLibraries.HandleAsync(
-            new GetMyLibrariesQuery(page),
-            cancellationToken);
+        var result = await libraryService.GetMyLibrariesAsync(page, cancellationToken);
 
         return Ok(ApiResponse.Succeeded(result, "My libraries retrieved."));
+    }
+
+    [HttpGet("{libraryId:guid}")]
+    [ProducesResponseType<ApiResponse<LibraryViewModel>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<LibraryViewModel>>> GetById(
+        Guid libraryId,
+        CancellationToken cancellationToken)
+    {
+        var result = await libraryService.GetByIdAsync(libraryId, cancellationToken);
+        return Ok(ApiResponse.Succeeded(result, "Library retrieved."));
     }
 }

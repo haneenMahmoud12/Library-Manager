@@ -1,4 +1,4 @@
-using PersonalLibrary.Application.Identity.Commands.Register;
+using PersonalLibrary.Application.Identity;
 using PersonalLibrary.Application.Identity.Exceptions;
 using PersonalLibrary.Application.Identity.Models;
 using PersonalLibrary.Application.Identity.Services;
@@ -14,10 +14,10 @@ public sealed class RegisterUserHandlerTests
         var identity = new StubIdentityService(
             new(userId, "reader@example.com", "Reader", []));
         var email = new StubEmailService();
-        var handler = new RegisterUserHandler(identity, email);
+        var service = new AuthService(identity, new StubTokenService(), email);
 
-        var result = await handler.HandleAsync(
-            new("  reader@example.com  ", "Password1", "Password1", "  Reader  "));
+        var result = await service.RegisterAsync(
+            new RegisterDto("  reader@example.com  ", "Password1", "Password1", "  Reader  "));
 
         Assert.Equal(userId, result.UserId);
         Assert.Equal("reader@example.com", identity.Email);
@@ -30,10 +30,10 @@ public sealed class RegisterUserHandlerTests
     {
         var identity = new StubIdentityService(
             new(Guid.NewGuid(), "unused@example.com", "Unused", []));
-        var handler = new RegisterUserHandler(identity, new StubEmailService());
+        var service = new AuthService(identity, new StubTokenService(), new StubEmailService());
 
         await Assert.ThrowsAsync<RegistrationValidationException>(() =>
-            handler.HandleAsync(new("not-an-email", "Password1", "Password1", "Reader")));
+            service.RegisterAsync(new("not-an-email", "Password1", "Password1", "Reader")));
 
         Assert.False(identity.WasCalled);
     }
@@ -43,10 +43,10 @@ public sealed class RegisterUserHandlerTests
     {
         var identity = new StubIdentityService(
             new(null, null, null, [new("DuplicateEmail", "Already registered.")]));
-        var handler = new RegisterUserHandler(identity, new StubEmailService());
+        var service = new AuthService(identity, new StubTokenService(), new StubEmailService());
 
         var exception = await Assert.ThrowsAsync<RegistrationValidationException>(() =>
-            handler.HandleAsync(new("reader@example.com", "Password1", "Password1", "Reader")));
+            service.RegisterAsync(new("reader@example.com", "Password1", "Password1", "Reader")));
 
         Assert.Contains(exception.Errors, error => error.Code == "DuplicateEmail");
     }
@@ -56,10 +56,10 @@ public sealed class RegisterUserHandlerTests
     {
         var identity = new StubIdentityService(
             new(Guid.NewGuid(), "reader@example.com", "Reader", []));
-        var handler = new RegisterUserHandler(identity, new StubEmailService());
+        var service = new AuthService(identity, new StubTokenService(), new StubEmailService());
 
         await Assert.ThrowsAsync<RegistrationValidationException>(() =>
-            handler.HandleAsync(new("reader@example.com", "Password1", "Password2", "Reader")));
+            service.RegisterAsync(new("reader@example.com", "Password1", "Password2", "Reader")));
 
         Assert.False(identity.WasCalled);
     }
@@ -113,5 +113,18 @@ public sealed class RegisterUserHandlerTests
             WasCalled = true;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class StubTokenService : ITokenService
+    {
+        public Task<TokenPairResult> IssueAsync(
+            AuthenticatedUserResult user,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TokenPairResult?> RefreshAsync(
+            string refreshToken,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

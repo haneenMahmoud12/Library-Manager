@@ -2,36 +2,26 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PersonalLibrary.Api.Contracts.Common;
 using PersonalLibrary.Api.Contracts.Identity;
-using PersonalLibrary.Application.Identity.Commands.ConfirmEmail;
-using PersonalLibrary.Application.Identity.Commands.Login;
-using PersonalLibrary.Application.Identity.Commands.RefreshToken;
-using PersonalLibrary.Application.Identity.Commands.Register;
-using PersonalLibrary.Application.Identity.Commands.ResendConfirmation;
 using PersonalLibrary.Application.Identity.Models;
+using PersonalLibrary.Application.Identity.Services;
 
 namespace PersonalLibrary.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public sealed class AuthController(
-    RegisterUserHandler registerUser,
-    LoginUserHandler loginUser,
-    ConfirmEmailHandler confirmEmail,
-    RefreshTokenHandler refreshToken,
-    ResendConfirmationHandler resendConfirmation)
-    : ControllerBase
+public sealed class AuthController(IAuthService authService) : ControllerBase
 {
     [AllowAnonymous]
     [HttpPost("register")]
-    [ProducesResponseType<ApiResponse<RegisterUserResult>>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ApiResponse<RegisterViewModel>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<ApiResponse<RegisterUserResult>>> Register(
+    public async Task<ActionResult<ApiResponse<RegisterViewModel>>> Register(
         RegisterRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await registerUser.HandleAsync(
-            new RegisterUserCommand(
+        var result = await authService.RegisterAsync(
+            new RegisterDto(
                 request.Email,
                 request.Password,
                 request.ConfirmPassword,
@@ -45,15 +35,15 @@ public sealed class AuthController(
 
     [AllowAnonymous]
     [HttpPost("login")]
-    [ProducesResponseType<ApiResponse<LoginUserResult>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<LoginViewModel>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<ApiResponse<LoginUserResult>>> Login(
+    public async Task<ActionResult<ApiResponse<LoginViewModel>>> Login(
         LoginRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await loginUser.HandleAsync(
-            new LoginUserCommand(request.Email, request.Password),
+        var result = await authService.LoginAsync(
+            new LoginDto(request.Email, request.Password),
             cancellationToken);
 
         return Ok(ApiResponse.Succeeded(result, "Login succeeded."));
@@ -68,9 +58,7 @@ public sealed class AuthController(
         [FromQuery] string token,
         CancellationToken cancellationToken)
     {
-        await confirmEmail.HandleAsync(
-            new ConfirmEmailCommand(userId, token),
-            cancellationToken);
+        await authService.ConfirmEmailAsync(userId, token, cancellationToken);
 
         return Ok(ApiResponse.Succeeded("Email confirmed. You can now sign in."));
     }
@@ -82,9 +70,7 @@ public sealed class AuthController(
         ResendConfirmationRequest request,
         CancellationToken cancellationToken)
     {
-        await resendConfirmation.HandleAsync(
-            new ResendConfirmationCommand(request.Email),
-            cancellationToken);
+        await authService.ResendConfirmationAsync(request.Email, cancellationToken);
 
         return Accepted(ApiResponse.Succeeded(
             "If the account exists and is unconfirmed, a confirmation email has been sent."));
@@ -98,9 +84,7 @@ public sealed class AuthController(
         RefreshTokenRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await refreshToken.HandleAsync(
-            new RefreshTokenCommand(request.RefreshToken),
-            cancellationToken);
+        var result = await authService.RefreshTokenAsync(request.RefreshToken, cancellationToken);
 
         return Ok(ApiResponse.Succeeded(result, "Token refreshed."));
     }

@@ -1,6 +1,6 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
-using PersonalLibrary.Application.Persistence;
+using PersonalLibrary.Application.Abstractions;
 
 namespace PersonalLibrary.Infrastructure.Persistence;
 

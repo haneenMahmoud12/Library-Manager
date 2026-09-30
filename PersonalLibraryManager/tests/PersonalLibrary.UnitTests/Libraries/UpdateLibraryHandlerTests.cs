@@ -1,11 +1,10 @@
 using System.Data;
+using PersonalLibrary.Application.Abstractions;
 using PersonalLibrary.Application.Common.Authentication;
 using PersonalLibrary.Application.Common.Pagination;
-using PersonalLibrary.Application.Libraries.Commands.UpdateLibrary;
+using PersonalLibrary.Application.Libraries;
 using PersonalLibrary.Application.Libraries.Exceptions;
-using PersonalLibrary.Application.Libraries.Queries.GetMyLibraries;
-using PersonalLibrary.Application.Libraries.Repositories;
-using PersonalLibrary.Application.Persistence;
+using PersonalLibrary.Application.Libraries.Models;
 using PersonalLibrary.Domain.Libraries;
 using PersonalLibrary.Domain.Libraries.Enums;
 
@@ -21,13 +20,14 @@ public sealed class UpdateLibraryHandlerTests
         var userId = Guid.NewGuid();
         var library = CreateLibrary(userId, role);
         var unitOfWork = new StubUnitOfWork();
-        var handler = new UpdateLibraryHandler(
+        var service = new LibraryService(
             new StubLibraryRepository(library),
             unitOfWork,
             new StubCurrentUserContext(userId));
 
-        var result = await handler.HandleAsync(new UpdateLibraryCommand(
+        var result = await service.SaveAsync(
             library.Id,
+            new UpdateLibraryDto(
             "  Updated Library  ",
             "  Updated description  ",
             "Public"));
@@ -46,13 +46,13 @@ public sealed class UpdateLibraryHandlerTests
         var library = CreateLibrary(userId, LibraryMemberRole.Owner);
         library.Visibility = LibraryVisibility.FriendsOnly;
         library.Description = "Old description";
-        var handler = new UpdateLibraryHandler(
+        var service = new LibraryService(
             new StubLibraryRepository(library),
             new StubUnitOfWork(),
             new StubCurrentUserContext(userId));
 
-        var result = await handler.HandleAsync(
-            new UpdateLibraryCommand(library.Id, "Updated", null));
+        var result = await service.SaveAsync(
+            library.Id, new UpdateLibraryDto("Updated", null, null));
 
         Assert.Equal("Old description", result.Description);
         Assert.Equal(LibraryVisibility.FriendsOnly, result.Visibility);
@@ -64,13 +64,13 @@ public sealed class UpdateLibraryHandlerTests
         var userId = Guid.NewGuid();
         var library = CreateLibrary(userId, LibraryMemberRole.Owner);
         library.Description = "Old description";
-        var handler = new UpdateLibraryHandler(
+        var service = new LibraryService(
             new StubLibraryRepository(library),
             new StubUnitOfWork(),
             new StubCurrentUserContext(userId));
 
-        var result = await handler.HandleAsync(
-            new UpdateLibraryCommand(library.Id, null, ""));
+        var result = await service.SaveAsync(
+            library.Id, new UpdateLibraryDto(null, "", null));
 
         Assert.Null(result.Description);
         Assert.Equal("Original", result.Name);
@@ -80,16 +80,15 @@ public sealed class UpdateLibraryHandlerTests
     public async Task HandleAsync_rejects_a_request_with_no_fields()
     {
         var repository = new StubLibraryRepository(null);
-        var handler = new UpdateLibraryHandler(
+        var service = new LibraryService(
             repository,
             new StubUnitOfWork(),
             new StubCurrentUserContext(Guid.NewGuid()));
 
         await Assert.ThrowsAsync<LibraryValidationException>(() =>
-            handler.HandleAsync(new UpdateLibraryCommand(
+            service.SaveAsync(
                 Guid.NewGuid(),
-                null,
-                null)));
+                new UpdateLibraryDto(null, null, null)));
 
         Assert.Equal(0, repository.LoadCalls);
     }
@@ -99,13 +98,13 @@ public sealed class UpdateLibraryHandlerTests
     {
         var userId = Guid.NewGuid();
         var unitOfWork = new StubUnitOfWork();
-        var handler = new UpdateLibraryHandler(
+        var service = new LibraryService(
             new StubLibraryRepository(CreateLibrary(userId, LibraryMemberRole.Viewer)),
             unitOfWork,
             new StubCurrentUserContext(userId));
 
         await Assert.ThrowsAsync<LibraryAccessDeniedException>(() =>
-            handler.HandleAsync(new UpdateLibraryCommand(Guid.NewGuid(), "Updated", null)));
+            service.SaveAsync(Guid.NewGuid(), new UpdateLibraryDto("Updated", null, null)));
 
         Assert.Equal(0, unitOfWork.SaveCalls);
     }
@@ -114,13 +113,13 @@ public sealed class UpdateLibraryHandlerTests
     public async Task HandleAsync_returns_not_found_without_saving()
     {
         var unitOfWork = new StubUnitOfWork();
-        var handler = new UpdateLibraryHandler(
+        var service = new LibraryService(
             new StubLibraryRepository(null),
             unitOfWork,
             new StubCurrentUserContext(Guid.NewGuid()));
 
         await Assert.ThrowsAsync<LibraryNotFoundException>(() =>
-            handler.HandleAsync(new UpdateLibraryCommand(Guid.NewGuid(), "Updated", null)));
+            service.SaveAsync(Guid.NewGuid(), new UpdateLibraryDto("Updated", null, null)));
 
         Assert.Equal(0, unitOfWork.SaveCalls);
     }
@@ -129,17 +128,15 @@ public sealed class UpdateLibraryHandlerTests
     public async Task HandleAsync_rejects_invalid_visibility_before_loading()
     {
         var repository = new StubLibraryRepository(null);
-        var handler = new UpdateLibraryHandler(
+        var service = new LibraryService(
             repository,
             new StubUnitOfWork(),
             new StubCurrentUserContext(Guid.NewGuid()));
 
         await Assert.ThrowsAsync<LibraryValidationException>(() =>
-            handler.HandleAsync(new UpdateLibraryCommand(
+            service.SaveAsync(
                 Guid.NewGuid(),
-                "Updated",
-                null,
-                "Hidden")));
+                new UpdateLibraryDto("Updated", null, "Hidden")));
 
         Assert.Equal(0, repository.LoadCalls);
     }
@@ -181,7 +178,12 @@ public sealed class UpdateLibraryHandlerTests
             return Task.FromResult(library);
         }
 
-        public Task<PagedResult<GetMyLibrariesResult>> GetUserLibrariesAsync(
+        public Task<Library?> GetByIdWithDetailsAsync(
+            Guid libraryId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<PagedResult<LibraryListItemViewModel>> GetUserLibrariesAsync(
             Guid userId,
             PageRequest page,
             CancellationToken cancellationToken = default) =>

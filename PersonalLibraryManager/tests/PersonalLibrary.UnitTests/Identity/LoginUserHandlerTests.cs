@@ -1,4 +1,4 @@
-using PersonalLibrary.Application.Identity.Commands.Login;
+using PersonalLibrary.Application.Identity;
 using PersonalLibrary.Application.Identity.Exceptions;
 using PersonalLibrary.Application.Identity.Models;
 using PersonalLibrary.Application.Identity.Services;
@@ -18,10 +18,10 @@ public sealed class LoginUserHandlerTests
             DateTime.UtcNow.AddMinutes(10),
             "refresh",
             DateTime.UtcNow.AddDays(30));
-        var handler = new LoginUserHandler(identity, new StubTokenService(expectedTokens));
+        var service = new AuthService(identity, new StubTokenService(expectedTokens), new StubEmailService());
 
-        var result = await handler.HandleAsync(
-            new LoginUserCommand(" reader@example.com ", "Password1"));
+        var result = await service.LoginAsync(
+            new LoginDto(" reader@example.com ", "Password1"));
 
         Assert.Equal(userId, result.UserId);
         Assert.Equal("access", result.Tokens.AccessToken);
@@ -34,10 +34,10 @@ public sealed class LoginUserHandlerTests
         var identity = new StubIdentityService(
             new(null, null, null, [], [new("EmailNotConfirmed", "Confirm email.")]));
         var tokens = new StubTokenService(null);
-        var handler = new LoginUserHandler(identity, tokens);
+        var service = new AuthService(identity, tokens, new StubEmailService());
 
         var exception = await Assert.ThrowsAsync<AuthenticationFlowException>(() =>
-            handler.HandleAsync(new("reader@example.com", "Password1")));
+            service.LoginAsync(new("reader@example.com", "Password1")));
 
         Assert.Equal("EmailNotConfirmed", exception.Code);
         Assert.False(tokens.WasCalled);
@@ -85,6 +85,14 @@ public sealed class LoginUserHandlerTests
 
         public Task<TokenPairResult?> RefreshAsync(
             string refreshToken,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class StubEmailService : IEmailService
+    {
+        public Task SendConfirmationEmailAsync(
+            EmailConfirmationChallenge challenge,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }

@@ -1,4 +1,4 @@
-using PersonalLibrary.Application.Identity.Commands.Register;
+using PersonalLibrary.Application.Identity.Services;
 using PersonalLibrary.Domain.Common;
 using PersonalLibrary.Infrastructure.Persistence;
 
@@ -21,7 +21,7 @@ public sealed class LayerDependencyTests
     [Fact]
     public void Application_does_not_reference_infrastructure_or_framework_adapters()
     {
-        var references = ReferencedAssemblies(typeof(RegisterUserHandler).Assembly);
+        var references = ReferencedAssemblies(typeof(AuthService).Assembly);
 
         Assert.DoesNotContain("PersonalLibrary.Infrastructure", references);
         Assert.DoesNotContain("PersonalLibrary.Api", references);

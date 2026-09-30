@@ -3,10 +3,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using PersonalLibrary.Application.Abstractions;
 using PersonalLibrary.Application.Catalog.Repositories;
 using PersonalLibrary.Application.Identity.Services;
-using PersonalLibrary.Application.Libraries.Repositories;
-using PersonalLibrary.Application.Persistence;
 using PersonalLibrary.Application.Persistence.IRepositories;
 using PersonalLibrary.Infrastructure.Authentication;
 using PersonalLibrary.Infrastructure.Email;
@@ -14,6 +13,7 @@ using PersonalLibrary.Infrastructure.Identity;
 using PersonalLibrary.Infrastructure.Identity.Services;
 using PersonalLibrary.Infrastructure.Persistence;
 using PersonalLibrary.Infrastructure.Persistence.Repositories;
+using PersonalLibrary.Infrastructure.Persistence.Repositories.Catalog;
 
 namespace PersonalLibrary.Infrastructure;
 
@@ -38,7 +38,7 @@ public static class DependencyInjection
 
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<ILibraryRepository, LibraryRepository>();
-        services.AddScoped<ICatalogRepository, CatalogRepository>();
+        services.AddScoped<IBookEditionRepository, BookEditionRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<ITokenService, JwtTokenService>();
