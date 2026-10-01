@@ -9,5 +9,8 @@ namespace PersonalLibrary.Application.Libraries.Repositories
 {
     public interface IBookCopyRepository : IRepository<BookCopy>
     {
+        Task<List<BookCopy>> GetAllByLibraryIdAsync(
+            Guid libraryId,
+            CancellationToken cancellationToken = default);
     }
 }

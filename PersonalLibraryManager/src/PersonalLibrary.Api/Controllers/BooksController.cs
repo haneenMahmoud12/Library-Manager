@@ -1,76 +1,78 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using PersonalLibrary.Api.Contracts.Common;
-using PersonalLibrary.Api.Contracts.Libraries;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using PersonalLibrary.Api.Contracts.Catalog;
-using PersonalLibrary.Application.Catalog.Services;
+using PersonalLibrary.Api.Contracts.Common;
 using PersonalLibrary.Application.Catalog.Models;
-using PersonalLibrary.Application.Libraries.Models;
-using PersonalLibrary.Application.Libraries.Services;
+using PersonalLibrary.Application.Catalog.Metadata;
+using PersonalLibrary.Application.Catalog.Services;
 
-namespace PersonalLibrary.Api.Controllers
+namespace PersonalLibrary.Api.Controllers;
+
+[ApiController]
+[Authorize]
+[Route("api/books")]
+public sealed class BooksController(
+    IBookService bookService,
+    IBookMetadataLookupService metadataLookupService) : ControllerBase
 {
-    [ApiController]
-    [Route("api/books")]
-    public class BooksController(IBookService bookService) : ControllerBase
-    {
-        [HttpPost]
-        [ProducesResponseType<ApiResponse<BookViewModel>>(StatusCodes.Status201Created)]
-        [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
-        public async Task<ActionResult<ApiResponse<BookViewModel>>> Create(
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<BookViewModel>>> Create(
         SaveBookRequest request,
         CancellationToken cancellationToken)
-        {
-            var result = await bookService.SaveAsync(
-                new CreateBookDto(
-                    request.Title,
-                    request.OriginalTitle,
-                    request.Description,
-                    request.OriginalLanguageCode,
-                    request.FirstPublishedYear,
-                    request.Authors),
-                cancellationToken);
+    {
+        var result = await bookService.SaveAsync(
+            new CreateBookDto(
+                request.Title, request.OriginalTitle, request.Description,
+                request.OriginalLanguageCode, request.FirstPublishedYear,
+                request.Authors.Select(author => new BookAuthorDto(author.AuthorId, author.AuthorOrder)).ToList()),
+            cancellationToken);
+        return Created($"/api/books/{result.Id}", ApiResponse.Succeeded(result, "Book created."));
+    }
 
-            return Created(
-                $"/api/books/{result.Id}",
-                ApiResponse.Succeeded(result, "Book created."));
-        }
+    [HttpPatch("{bookId:guid}")]
+    public async Task<ActionResult<ApiResponse<BookViewModel>>> Update(
+        Guid bookId,
+        SaveBookRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await bookService.SaveAsync(
+            bookId,
+            new UpdateBookDto(
+                request.Title, request.OriginalTitle, request.Description,
+                request.OriginalLanguageCode, request.FirstPublishedYear,
+                request.Authors.Select(author => new BookAuthorDto(author.AuthorId, author.AuthorOrder)).ToList()),
+            cancellationToken);
+        return Ok(ApiResponse.Succeeded(result, "Book updated."));
+    }
 
-        [HttpPatch("{bookId:guid}")]
-        [ProducesResponseType<ApiResponse<BookViewModel>>(StatusCodes.Status200OK)]
-        [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
-        public async Task<ActionResult<ApiResponse<BookViewModel>>> Update(
-            Guid bookId,
-            SaveBookRequest request,
-            CancellationToken cancellationToken)
-        {
-            var result = await bookService.SaveAsync(
-                bookId,
-                new UpdateBookDto(
-                    request.Title,
-                    request.OriginalTitle,
-                    request.Description,
-                    request.OriginalLanguageCode,
-                    request.FirstPublishedYear,
-                    request.Authors),
-                cancellationToken);
-
-            return Ok(ApiResponse.Succeeded(result, "Book updated."));
-        }
-
-        [HttpGet("{bookId:guid}")]
-        [ProducesResponseType<ApiResponse<BookViewModel>>(StatusCodes.Status200OK)]
-        [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
-        public async Task<ActionResult<ApiResponse<BookViewModel>>> GetById(
+    [HttpGet("{bookId:guid}")]
+    public async Task<ActionResult<ApiResponse<BookViewModel>>> GetById(
         Guid bookId,
         CancellationToken cancellationToken)
-        {
-            var result = await bookService.GetByIdAsync(bookId, cancellationToken);
-            return Ok(ApiResponse.Succeeded(result, "Book retrieved."));
-        }
+    {
+        var result = await bookService.GetByIdAsync(bookId, cancellationToken);
+        return Ok(ApiResponse.Succeeded(result, "Book retrieved."));
+    }
+
+    [HttpGet("lookup/{isbn}")]
+    [ProducesResponseType<ApiResponse<BookMetadataLookupResult>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<ApiResponse<BookMetadataLookupResult>>> LookupByIsbn(
+        string isbn,
+        CancellationToken cancellationToken)
+    {
+        var result = await metadataLookupService.GetByIsbnAsync(isbn, cancellationToken);
+        return Ok(ApiResponse.Succeeded(result, "Book metadata retrieved."));
+    }
+
+    [HttpGet("/api/authors/{authorId:guid}/books")]
+    public async Task<ActionResult<ApiResponse<List<BookViewModel>>>> GetByAuthorId(
+        Guid authorId,
+        CancellationToken cancellationToken)
+    {
+        var result = await bookService.GetAllByAuthorIdAsync(authorId, cancellationToken);
+        return Ok(ApiResponse.Succeeded(result, "Author books retrieved."));
     }
 }

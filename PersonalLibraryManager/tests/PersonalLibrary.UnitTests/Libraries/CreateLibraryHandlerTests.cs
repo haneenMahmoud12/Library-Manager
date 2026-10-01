@@ -2,9 +2,9 @@ using System.Data;
 using PersonalLibrary.Application.Abstractions;
 using PersonalLibrary.Application.Common.Authentication;
 using PersonalLibrary.Application.Common.Pagination;
-using PersonalLibrary.Application.Libraries;
 using PersonalLibrary.Application.Libraries.Exceptions;
 using PersonalLibrary.Application.Libraries.Models;
+using PersonalLibrary.Application.Libraries.Services;
 using PersonalLibrary.Domain.Libraries;
 using PersonalLibrary.Domain.Libraries.Enums;
 
@@ -115,6 +115,10 @@ public sealed class CreateLibraryHandlerTests
 
         public ValueTask<Library?> GetByIdAsync(
             Guid id,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<List<Library>> GetAllAsync(
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

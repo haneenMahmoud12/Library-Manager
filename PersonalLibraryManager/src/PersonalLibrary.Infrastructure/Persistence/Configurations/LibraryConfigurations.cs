@@ -74,8 +74,8 @@ public sealed class BookCopyConfiguration : IEntityTypeConfiguration<BookCopy>
         builder.Property(x => x.AcquisitionDate).HasColumnType("date");
         builder.Property(x => x.PurchasePrice).HasPrecision(12, 2);
         builder.Property(x => x.CurrencyCode).HasMaxLength(3);
-        builder.Property(x => x.IsSigned).HasDefaultValue(false).IsRequired();
-        builder.Property(x => x.IsFavourite).HasDefaultValue(false).IsRequired();
+        builder.Property(x => x.IsSigned).HasDefaultValue(false);
+        builder.Property(x => x.IsFavourite).HasDefaultValue(false);
         builder.Property(x => x.PersonalNotes).HasColumnType("nvarchar(max)");
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.HasIndex(x => x.LibraryId);

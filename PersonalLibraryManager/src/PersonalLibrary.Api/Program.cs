@@ -6,9 +6,11 @@ using PersonalLibrary.Api.Authentication;
 using PersonalLibrary.Api.Contracts.Common;
 using PersonalLibrary.Api.Middleware;
 using PersonalLibrary.Application.Common.Authentication;
+using PersonalLibrary.Application.Catalog.Services;
 using PersonalLibrary.Application.Identity.Services;
 using PersonalLibrary.Application.Libraries.Services;
 using PersonalLibrary.Infrastructure;
+using PersonalLibrary.Infrastructure.Persistence;
 using System.Security.Claims;
 using System.Text;
 
@@ -17,6 +19,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ILibraryService, LibraryService>();
+builder.Services.AddScoped<ILibraryBookService, LibraryBookService>();
+builder.Services.AddScoped<IBookService, BookService>();
+builder.Services.AddScoped<IAuthorService, AuthorService>();
+builder.Services.AddScoped<IPublisherService, PublisherService>();
+builder.Services.AddScoped<IBookEditionService, BookEditionService>();
+builder.Services.AddScoped<IBookMetadataLookupService, BookMetadataLookupService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
 
@@ -109,6 +117,12 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
+    //await using (var scope = app.Services.CreateAsyncScope())
+    //{
+    //    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    //    await DatabaseSeeder.SeedCatalogAsync(context);
+    //}
+
     app.UseSwagger();
     app.UseSwaggerUI();
 }

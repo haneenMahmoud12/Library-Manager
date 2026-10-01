@@ -7,8 +7,9 @@ namespace PersonalLibrary.Application.Catalog.Services
 {
     public interface IBookService
     {
-        Task<BookViewModel?> GetByIdAsync(Guid bookId, CancellationToken cancellationToken);
-        Task<BookViewModel> SaveAsync(CreateBookDto bookDto, CancellationToken cancellationToken);
-        Task<BookViewModel> SaveAsync(Guid bookId, UpdateBookDto bookDto, CancellationToken cancellationToken);
+        Task<BookViewModel> GetByIdAsync(Guid bookId, CancellationToken cancellationToken = default);
+        Task<List<BookViewModel>> GetAllByAuthorIdAsync(Guid authorId, CancellationToken cancellationToken = default);
+        Task<BookViewModel> SaveAsync(CreateBookDto bookDto, CancellationToken cancellationToken = default);
+        Task<BookViewModel> SaveAsync(Guid bookId, UpdateBookDto bookDto, CancellationToken cancellationToken = default);
     }
 }

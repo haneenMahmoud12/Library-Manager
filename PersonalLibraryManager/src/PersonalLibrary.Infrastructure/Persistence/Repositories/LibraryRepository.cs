@@ -14,6 +14,7 @@ internal sealed class LibraryRepository(ApplicationDbContext context)
         CancellationToken cancellationToken = default) =>
         Context.Libraries
             .Include(library => library.Members)
+            .Include(library => library.Locations)
             .SingleOrDefaultAsync(
                 library => library.Id == libraryId,
                 cancellationToken);

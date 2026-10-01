@@ -9,6 +9,8 @@ public interface IRepository<T> where T : AuditableEntity
         Guid id,
         CancellationToken cancellationToken = default);
 
+    Task<List<T>> GetAllAsync(
+        CancellationToken cancellationToken = default);
     Task<PagedResult<T>> GetPageAsync(
         PageRequest request,
         CancellationToken cancellationToken = default);

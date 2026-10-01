@@ -16,8 +16,8 @@ public class BookCopy : AuditableEntity
     public DateOnly? AcquisitionDate { get; set; }
     public decimal? PurchasePrice { get; set; }
     public string? CurrencyCode { get; set; }
-    public bool IsSigned { get; set; }
-    public bool IsFavourite { get; set; }
+    public bool? IsSigned { get; set; }
+    public bool? IsFavourite { get; set; }
     public string? PersonalNotes { get; set; }
 
     public virtual Library Library { get; set; } = null!;

@@ -8,5 +8,6 @@ namespace PersonalLibrary.Application.Catalog.Repositories
 {
     public interface IAuthorRepository : IRepository<Author>
     {
+        Task<List<Author>> GetAllByBookIdAsync(Guid bookId, CancellationToken cancellationToken = default);
     }
 }

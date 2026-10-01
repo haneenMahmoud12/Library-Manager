@@ -145,4 +145,7 @@ internal class Repository<T>(ApplicationDbContext context)
         return underlyingType.IsEnum ||
                typeof(IComparable).IsAssignableFrom(underlyingType);
     }
+
+    public Task<List<T>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        _entities.AsNoTracking().ToListAsync(cancellationToken);
 }
