@@ -7,6 +7,9 @@ namespace PersonalLibrary.Infrastructure.Persistence.Repositories.Catalog;
 internal sealed class PublisherRepository(ApplicationDbContext context)
     : Repository<Publisher>(context), IPublisherRepository
 {
+    public Task<Publisher?> GetByNameAsync(string name, CancellationToken cancellationToken = default) =>
+        Context.Publishers.SingleOrDefaultAsync(publisher => publisher.Name == name, cancellationToken);
+
     public Task<List<Publisher>> GetAllByBookIdAsync(Guid bookId, CancellationToken cancellationToken = default) =>
         Context.BookEditions.AsNoTracking()
             .Where(edition => edition.BookId == bookId && edition.Publisher != null)

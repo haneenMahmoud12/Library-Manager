@@ -10,6 +10,7 @@ namespace PersonalLibrary.Application.Catalog.Repositories
     {
         Task<Book?> GetByIdWithDetailsAsync(Guid bookId, CancellationToken cancellationToken = default);
         Task<Book?> GetForUpdateAsync(Guid bookId, CancellationToken cancellationToken = default);
+        Task<List<Book>> GetAllByTitleForUpdateAsync(string title, CancellationToken cancellationToken = default);
         Task<List<Book>> GetAllByAuthorIdAsync(Guid authorId, CancellationToken cancellationToken = default);
     }
 }

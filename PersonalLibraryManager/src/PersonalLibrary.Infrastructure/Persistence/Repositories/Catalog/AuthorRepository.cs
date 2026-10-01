@@ -7,6 +7,9 @@ namespace PersonalLibrary.Infrastructure.Persistence.Repositories.Catalog;
 internal sealed class AuthorRepository(ApplicationDbContext context)
     : Repository<Author>(context), IAuthorRepository
 {
+    public Task<Author?> GetByNameAsync(string name, CancellationToken cancellationToken = default) =>
+        Context.Authors.SingleOrDefaultAsync(author => author.Name == name, cancellationToken);
+
     public Task<List<Author>> GetAllByBookIdAsync(Guid bookId, CancellationToken cancellationToken = default) =>
         Context.BookAuthors.AsNoTracking()
             .Where(bookAuthor => bookAuthor.BookId == bookId)

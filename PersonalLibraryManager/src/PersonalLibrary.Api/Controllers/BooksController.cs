@@ -54,17 +54,21 @@ public sealed class BooksController(
         return Ok(ApiResponse.Succeeded(result, "Book retrieved."));
     }
 
-    [HttpGet("lookup/{isbn}")]
+    [HttpPost("import/{isbn}")]
     [ProducesResponseType<ApiResponse<BookMetadataLookupResult>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status503ServiceUnavailable)]
-    public async Task<ActionResult<ApiResponse<BookMetadataLookupResult>>> LookupByIsbn(
+    public async Task<ActionResult<ApiResponse<BookMetadataLookupResult>>> ImportByIsbn(
         string isbn,
         CancellationToken cancellationToken)
     {
         var result = await metadataLookupService.GetByIsbnAsync(isbn, cancellationToken);
-        return Ok(ApiResponse.Succeeded(result, "Book metadata retrieved."));
+        return Ok(ApiResponse.Succeeded(
+            result,
+            result.FoundInLocalCatalog
+                ? "The book edition already exists in the catalog."
+                : "Book metadata imported into the catalog."));
     }
 
     [HttpGet("/api/authors/{authorId:guid}/books")]

@@ -1,6 +1,7 @@
 using PersonalLibrary.Api.Contracts.Common;
 using PersonalLibrary.Application.Identity.Exceptions;
 using PersonalLibrary.Application.Libraries.Exceptions;
+using PersonalLibrary.Application.Catalog.Exceptions;
 
 namespace PersonalLibrary.Api.Middleware;
 
@@ -66,6 +67,26 @@ public sealed class GlobalExceptionMiddleware(
     {
         RegistrationValidationException registration => MapRegistrationException(registration),
         AuthenticationFlowException authentication => MapAuthenticationException(authentication),
+        CatalogValidationException catalog => new(
+            StatusCodes.Status400BadRequest,
+            "CatalogValidationFailed",
+            "Catalog validation failed.",
+            new Dictionary<string, string[]>
+            {
+                [catalog.Field] = [catalog.ValidationMessage]
+            }),
+        BookNotFoundException => new(StatusCodes.Status404NotFound, "BookNotFound", "The requested book was not found."),
+        AuthorNotFoundException => new(StatusCodes.Status404NotFound, "AuthorNotFound", "The requested author was not found."),
+        PublisherNotFoundException => new(StatusCodes.Status404NotFound, "PublisherNotFound", "The requested publisher was not found."),
+        BookEditionNotFoundException => new(StatusCodes.Status404NotFound, "BookEditionNotFound", "The requested book edition was not found."),
+        BookMetadataNotFoundException => new(
+            StatusCodes.Status404NotFound,
+            "BookMetadataNotFound",
+            "No book metadata was found for the supplied ISBN."),
+        BookMetadataProviderException => new(
+            StatusCodes.Status503ServiceUnavailable,
+            "BookMetadataProvidersUnavailable",
+            "Book metadata providers are temporarily unavailable."),
         LibraryValidationException library => new(
             StatusCodes.Status400BadRequest,
             "LibraryValidationFailed",
