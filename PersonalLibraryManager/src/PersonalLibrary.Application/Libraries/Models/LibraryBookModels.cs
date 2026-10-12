@@ -44,3 +44,11 @@ public sealed record LibraryBookViewModel(
     DateTime? UpdatedAt);
 
 public sealed record LibraryBookAuthorViewModel(Guid Id, string Name, int AuthorOrder);
+
+public sealed record BookOwnershipResult(
+    string Isbn,
+    bool IsOwned,
+    int CopyCount,
+    Guid? BookId,
+    Guid? BookEditionId,
+    IReadOnlyList<LibraryBookViewModel> Copies);

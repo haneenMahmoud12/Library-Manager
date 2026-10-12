@@ -16,7 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Books\" />
     <Folder Include="Imports\" />
     <Folder Include="Libraries\" />
     <Folder Include="Loans\" />

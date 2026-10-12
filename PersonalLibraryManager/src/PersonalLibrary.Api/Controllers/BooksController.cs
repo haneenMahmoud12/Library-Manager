@@ -54,16 +54,38 @@ public sealed class BooksController(
         return Ok(ApiResponse.Succeeded(result, "Book retrieved."));
     }
 
-    [HttpPost("import/{isbn}")]
+    [HttpGet("lookup/{isbn}")]
     [ProducesResponseType<ApiResponse<BookMetadataLookupResult>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status503ServiceUnavailable)]
-    public async Task<ActionResult<ApiResponse<BookMetadataLookupResult>>> ImportByIsbn(
+    public async Task<ActionResult<ApiResponse<BookMetadataLookupResult>>> LookupByIsbn(
         string isbn,
         CancellationToken cancellationToken)
     {
-        var result = await metadataLookupService.GetByIsbnAsync(isbn, cancellationToken);
+        var result = await metadataLookupService.PreviewByIsbnAsync(isbn, cancellationToken);
+        return Ok(ApiResponse.Succeeded(
+            result,
+            result.FoundInLocalCatalog
+                ? "The book edition already exists in the catalog."
+                : result.RequiresReview
+                    ? "⚠ Metadata found from web sources. Please review before adding."
+                    : "Book metadata found. Please review before adding."));
+    }
+
+    [HttpPost("import/{isbn}")]
+    [ProducesResponseType<ApiResponse<BookMetadataLookupResult>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<BookMetadataLookupResult>>> ImportByIsbn(
+        string isbn,
+        ImportBookMetadataRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await metadataLookupService.ImportAsync(
+            isbn,
+            request.Metadata,
+            request.ConfirmWebMetadata,
+            cancellationToken);
         return Ok(ApiResponse.Succeeded(
             result,
             result.FoundInLocalCatalog

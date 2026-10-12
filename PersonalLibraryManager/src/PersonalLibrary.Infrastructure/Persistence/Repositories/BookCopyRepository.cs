@@ -22,4 +22,22 @@ internal sealed class BookCopyRepository(ApplicationDbContext context)
             .OrderBy(copy => copy.BookEdition.Book.Title)
             .ThenBy(copy => copy.Id)
             .ToListAsync(cancellationToken);
+
+    public Task<List<BookCopy>> GetAllByLibraryAndBookEditionIdAsync(
+        Guid libraryId,
+        Guid bookEditionId,
+        CancellationToken cancellationToken = default) =>
+        Context.BookCopies.AsNoTracking()
+            .Where(copy =>
+                copy.LibraryId == libraryId &&
+                copy.BookEditionId == bookEditionId)
+            .Include(copy => copy.BookEdition)
+                .ThenInclude(edition => edition.Book)
+                    .ThenInclude(book => book.BookAuthors.OrderBy(bookAuthor => bookAuthor.AuthorOrder))
+                        .ThenInclude(bookAuthor => bookAuthor.Author)
+            .Include(copy => copy.BookEdition)
+                .ThenInclude(edition => edition.Publisher)
+            .Include(copy => copy.Location)
+            .OrderBy(copy => copy.Id)
+            .ToListAsync(cancellationToken);
 }

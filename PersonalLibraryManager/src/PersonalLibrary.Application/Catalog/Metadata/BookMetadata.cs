@@ -2,7 +2,7 @@ namespace PersonalLibrary.Application.Catalog.Metadata;
 
 public sealed record BookMetadata(
     string Title,
-    string? Subtitle,
+    string? OriginalTitle,
     string? Description,
     string? LanguageCode,
     int? FirstPublishedYear,
@@ -29,10 +29,17 @@ public sealed record BookEditionMetadata(
 public sealed record BookMetadataProvenance(
     string Provider,
     string? ExternalId,
-    string? InformationUrl);
+    string? InformationUrl,
+    bool RequiresReview = false,
+    IReadOnlyList<BookMetadataSourceReference>? Sources = null);
+
+public sealed record BookMetadataSourceReference(string Url, string? Title = null);
 
 public sealed record BookMetadataLookupResult(
     bool FoundInLocalCatalog,
     Guid? BookId,
     Guid? BookEditionId,
+    bool RequiresReview,
+    string? Warning,
+    IReadOnlyList<BookMetadataSourceReference> Sources,
     BookMetadata Metadata);

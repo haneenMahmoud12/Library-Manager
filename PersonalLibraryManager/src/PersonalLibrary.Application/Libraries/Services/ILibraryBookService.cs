@@ -12,4 +12,9 @@ public interface ILibraryBookService
     Task<List<LibraryBookViewModel>> GetContentsAsync(
         Guid libraryId,
         CancellationToken cancellationToken = default);
+
+    Task<BookOwnershipResult> CheckOwnershipAsync(
+        Guid libraryId,
+        string isbn,
+        CancellationToken cancellationToken = default);
 }

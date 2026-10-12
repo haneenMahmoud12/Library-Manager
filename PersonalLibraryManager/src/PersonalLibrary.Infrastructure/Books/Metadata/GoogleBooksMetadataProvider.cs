@@ -37,7 +37,7 @@ internal sealed class GoogleBooksMetadataProvider(
         var identifiers = info.IndustryIdentifiers ?? [];
         return new BookMetadata(
             info.Title.Trim(),
-            Normalize(info.Subtitle),
+            null,
             Normalize(info.Description),
             Normalize(info.Language),
             ParseYear(info.PublishedDate),

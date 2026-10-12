@@ -15,7 +15,7 @@ public sealed class BookMetadataLookupService(
     IBookMetadataProvider metadataProvider,
     IUnitOfWork unitOfWork) : IBookMetadataLookupService
 {
-    public async Task<BookMetadataLookupResult> GetByIsbnAsync(
+    public async Task<BookMetadataLookupResult> PreviewByIsbnAsync(
         string isbn,
         CancellationToken cancellationToken = default)
     {
@@ -30,17 +30,106 @@ public sealed class BookMetadataLookupService(
                 true,
                 localEdition.BookId,
                 localEdition.Id,
+                false,
+                null,
+                [],
                 MapLocal(localEdition));
         }
 
         var metadata = await metadataProvider.GetByIsbnAsync(normalizedIsbn, cancellationToken)
             ?? throw new BookMetadataNotFoundException(normalizedIsbn);
-        var (bookId, editionId) = await PersistAsync(
-            normalizedIsbn,
-            metadata,
-            cancellationToken);
+        var requiresReview = metadata.Provenance.RequiresReview;
+        return new BookMetadataLookupResult(
+            false,
+            null,
+            null,
+            requiresReview,
+            requiresReview
+                ? "⚠ Metadata found from web sources. Please review before adding."
+                : null,
+            metadata.Provenance.Sources ?? [],
+            metadata);
+    }
 
-        return new BookMetadataLookupResult(false, bookId, editionId, metadata);
+    public async Task<BookMetadataLookupResult> ImportAsync(
+        string isbn,
+        BookMetadata metadata,
+        bool confirmWebMetadata,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedIsbn = IsbnNormalizer.Normalize(isbn);
+        ValidateForImport(normalizedIsbn, metadata, confirmWebMetadata);
+
+        var localEdition = await editionRepository.GetByIsbnWithDetailsAsync(
+            normalizedIsbn,
+            cancellationToken);
+        if (localEdition is not null)
+        {
+            return new BookMetadataLookupResult(
+                true,
+                localEdition.BookId,
+                localEdition.Id,
+                false,
+                null,
+                [],
+                MapLocal(localEdition));
+        }
+
+        var (bookId, editionId) = await PersistAsync(normalizedIsbn, metadata, cancellationToken);
+        return new BookMetadataLookupResult(
+            false,
+            bookId,
+            editionId,
+            false,
+            null,
+            metadata.Provenance.Sources ?? [],
+            metadata);
+    }
+
+    private static void ValidateForImport(
+        string requestedIsbn,
+        BookMetadata metadata,
+        bool confirmWebMetadata)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        if (string.IsNullOrWhiteSpace(metadata.Title))
+            throw new CatalogValidationException("Title", "Book title is required.");
+        if (metadata.Authors is null)
+            throw new CatalogValidationException("Authors", "Authors must be supplied as an array.");
+        if (metadata.Edition is null)
+            throw new CatalogValidationException("Edition", "Edition metadata is required.");
+        if (metadata.Provenance is null)
+            throw new CatalogValidationException("Provenance", "Metadata provenance is required.");
+
+        var suppliedIsbns = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var suppliedIsbn in new[] { metadata.Edition.Isbn10, metadata.Edition.Isbn13 }
+                     .Where(value => !string.IsNullOrWhiteSpace(value)))
+        {
+            if (!IsbnNormalizer.TryNormalize(suppliedIsbn, out var normalized))
+                throw new CatalogValidationException("Isbn", "The reviewed metadata contains an invalid ISBN.");
+            suppliedIsbns.Add(normalized!);
+        }
+        if (suppliedIsbns.Count > 0 && !suppliedIsbns.Contains(requestedIsbn))
+        {
+            throw new CatalogValidationException(
+                "Isbn",
+                "The reviewed metadata does not match the requested ISBN.");
+        }
+
+        if (metadata.Provenance.RequiresReview && !confirmWebMetadata)
+        {
+            throw new CatalogValidationException(
+                "ConfirmWebMetadata",
+                "Web-search metadata must be reviewed and explicitly confirmed before import.");
+        }
+
+        if (metadata.Provenance.RequiresReview && (metadata.Provenance.Sources?.Count ?? 0) == 0)
+        {
+            throw new CatalogValidationException(
+                "Sources",
+                "Web-search metadata must include at least one source.");
+        }
     }
 
     private async Task<(Guid BookId, Guid EditionId)> PersistAsync(
@@ -175,6 +264,7 @@ public sealed class BookMetadataLookupService(
             {
                 Id = Guid.NewGuid(),
                 Title = title,
+                OriginalTitle = Limit(metadata.OriginalTitle, 500),
                 Description = Normalize(metadata.Description),
                 OriginalLanguageCode = Limit(metadata.LanguageCode, 10),
                 FirstPublishedYear = ValidateYear(metadata.FirstPublishedYear),
@@ -198,6 +288,11 @@ public sealed class BookMetadataLookupService(
         }
 
         var changed = false;
+        if (book.OriginalTitle is null && Limit(metadata.OriginalTitle, 500) is { } originalTitle)
+        {
+            book.OriginalTitle = originalTitle;
+            changed = true;
+        }
         if (book.Description is null && Normalize(metadata.Description) is { } description)
         {
             book.Description = description;
@@ -298,7 +393,7 @@ public sealed class BookMetadataLookupService(
         var book = edition.Book;
         return new BookMetadata(
             book.Title,
-            null,
+            book.OriginalTitle,
             edition.Description ?? book.Description,
             edition.LanguageCode ?? book.OriginalLanguageCode,
             book.FirstPublishedYear,

@@ -57,10 +57,20 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(metadataTimeoutSeconds);
             client.DefaultRequestHeaders.UserAgent.ParseAdd("PersonalLibraryManager/1.0");
         });
+        services.AddHttpClient<WebSearchMetadataProvider>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.openai.com/v1/");
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(
+                configuration.GetValue<int?>("BookMetadata:WebSearchTimeoutSeconds") ?? 45,
+                5,
+                120));
+        });
         services.AddTransient<IBookMetadataSource>(provider =>
             provider.GetRequiredService<GoogleBooksMetadataProvider>());
         services.AddTransient<IBookMetadataSource>(provider =>
             provider.GetRequiredService<OpenLibraryMetadataProvider>());
+        services.AddTransient<IBookMetadataSource>(provider =>
+            provider.GetRequiredService<WebSearchMetadataProvider>());
         services.AddScoped<IBookMetadataProvider, FallbackBookMetadataProvider>();
 
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));

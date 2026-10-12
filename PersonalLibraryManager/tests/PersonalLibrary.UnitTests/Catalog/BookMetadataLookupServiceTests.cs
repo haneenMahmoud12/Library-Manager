@@ -16,7 +16,7 @@ public sealed class BookMetadataLookupServiceTests
     private const string ValidIsbn = "9780451524935";
 
     [Fact]
-    public async Task GetByIsbnAsync_returns_local_edition_before_calling_provider()
+    public async Task PreviewByIsbnAsync_returns_local_edition_before_calling_provider()
     {
         var author = new Author { Id = Guid.NewGuid(), Name = "George Orwell" };
         var book = new Book { Id = Guid.NewGuid(), Title = "Nineteen Eighty-Four" };
@@ -31,7 +31,7 @@ public sealed class BookMetadataLookupServiceTests
         var provider = new StubMetadataProvider(null);
         var service = CreateService(new StubEditionRepository(edition), provider);
 
-        var result = await service.GetByIsbnAsync(ValidIsbn);
+        var result = await service.PreviewByIsbnAsync(ValidIsbn);
 
         Assert.True(result.FoundInLocalCatalog);
         Assert.Equal(edition.Id, result.BookEditionId);
@@ -40,7 +40,29 @@ public sealed class BookMetadataLookupServiceTests
     }
 
     [Fact]
-    public async Task GetByIsbnAsync_persists_external_metadata_when_edition_is_not_local()
+    public async Task PreviewByIsbnAsync_returns_external_metadata_without_persisting_it()
+    {
+        var metadata = CreateMetadata();
+        var provider = new StubMetadataProvider(metadata);
+        var editions = new StubEditionRepository(null);
+        var books = new StubBookRepository();
+        var unitOfWork = new StubUnitOfWork();
+        var service = new BookMetadataLookupService(
+            editions, books, new StubAuthorRepository(), new StubPublisherRepository(), provider, unitOfWork);
+
+        var result = await service.PreviewByIsbnAsync(ValidIsbn);
+
+        Assert.False(result.FoundInLocalCatalog);
+        Assert.Null(result.BookId);
+        Assert.Null(result.BookEditionId);
+        Assert.Equal(metadata, result.Metadata);
+        Assert.Equal(ValidIsbn, provider.LastIsbn);
+        Assert.Null(books.Added);
+        Assert.Equal(0, unitOfWork.TransactionCalls);
+    }
+
+    [Fact]
+    public async Task ImportAsync_persists_reviewed_metadata_when_edition_is_not_local()
     {
         var metadata = CreateMetadata();
         var provider = new StubMetadataProvider(metadata);
@@ -52,11 +74,11 @@ public sealed class BookMetadataLookupServiceTests
         var service = new BookMetadataLookupService(
             editions, books, authors, publishers, provider, unitOfWork);
 
-        var result = await service.GetByIsbnAsync("978-0-451-52493-5");
+        var result = await service.ImportAsync("978-0-451-52493-5", metadata, false);
 
         Assert.False(result.FoundInLocalCatalog);
         Assert.Equal(metadata, result.Metadata);
-        Assert.Equal(ValidIsbn, provider.LastIsbn);
+        Assert.Equal(0, provider.Calls);
         Assert.Equal(books.Added!.Id, result.BookId);
         Assert.Equal(editions.Added!.Id, result.BookEditionId);
         Assert.Equal(ValidIsbn, editions.Added.Isbn13);
@@ -72,13 +94,33 @@ public sealed class BookMetadataLookupServiceTests
     [InlineData("")]
     [InlineData("1234567890")]
     [InlineData("9780451524936")]
-    public async Task GetByIsbnAsync_rejects_invalid_isbn(string isbn)
+    public async Task PreviewByIsbnAsync_rejects_invalid_isbn(string isbn)
     {
         var provider = new StubMetadataProvider(CreateMetadata());
         var service = CreateService(new StubEditionRepository(null), provider);
 
-        await Assert.ThrowsAsync<CatalogValidationException>(() => service.GetByIsbnAsync(isbn));
+        await Assert.ThrowsAsync<CatalogValidationException>(() => service.PreviewByIsbnAsync(isbn));
         Assert.Equal(0, provider.Calls);
+    }
+
+    [Fact]
+    public async Task ImportAsync_requires_explicit_confirmation_for_web_metadata()
+    {
+        var metadata = CreateMetadata() with
+        {
+            Provenance = new BookMetadataProvenance(
+                "OpenAIWebSearch",
+                null,
+                "https://example.com/book",
+                true,
+                [new BookMetadataSourceReference("https://example.com/book")])
+        };
+        var service = CreateService(new StubEditionRepository(null), new StubMetadataProvider(null));
+
+        var exception = await Assert.ThrowsAsync<CatalogValidationException>(() =>
+            service.ImportAsync(ValidIsbn, metadata, false));
+
+        Assert.Equal("ConfirmWebMetadata", exception.Field);
     }
 
     private static BookMetadataLookupService CreateService(

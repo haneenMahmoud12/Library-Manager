@@ -57,4 +57,19 @@ public sealed class LibraryBooksController(ILibraryBookService libraryBookServic
         var result = await libraryBookService.GetContentsAsync(libraryId, cancellationToken);
         return Ok(ApiResponse.Succeeded(result, "Library contents retrieved."));
     }
+
+    [HttpGet("CheckOwnership/{isbn}")]
+    [ProducesResponseType<ApiResponse<BookOwnershipResult>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<BookOwnershipResult>>> CheckOwnership(
+        Guid libraryId,
+        string isbn,
+        CancellationToken cancellationToken)
+    {
+        var result = await libraryBookService.CheckOwnershipAsync(libraryId, isbn, cancellationToken);
+        return Ok(ApiResponse.Succeeded(result, "Ownership check completed."));
+    }
 }

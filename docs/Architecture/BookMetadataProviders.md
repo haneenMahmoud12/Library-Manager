@@ -8,13 +8,18 @@ Current order:
 
 1. Google Books (`Priority = 100`)
 2. Open Library (`Priority = 200`), using `/isbn/{isbn}.json`
+3. OpenAI web search (`Priority = 300`), using strict structured output
 
 The lookup service always checks the local `BookEditions` table first. External
 providers are contacted only when the normalized ISBN is not in the catalog.
-When an external source returns metadata, `POST /api/books/import/{isbn}` stores
-the book, edition, authors, and publisher in one transaction. Existing entities
-are reused by ISBN or normalized catalog identity, and empty optional fields are
-enriched when the provider supplies values.
+`GET /api/books/lookup/{isbn}` returns a preview and never writes to the database.
+AI/web-search previews include `requiresReview: true`, a warning, and source URLs.
+
+After review, `POST /api/books/import/{isbn}` accepts the preview metadata and
+stores the book, edition, authors, and publisher in one transaction. AI metadata
+also requires `confirmWebMetadata: true`. Existing entities are reused by ISBN or
+normalized catalog identity, and empty optional fields are enriched when the
+provider supplies values.
 
 ## Adding another provider
 

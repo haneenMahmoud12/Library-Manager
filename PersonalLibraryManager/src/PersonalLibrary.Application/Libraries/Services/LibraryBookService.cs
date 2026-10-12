@@ -1,5 +1,6 @@
 using PersonalLibrary.Application.Abstractions;
 using PersonalLibrary.Application.Catalog.Exceptions;
+using PersonalLibrary.Application.Catalog.Metadata;
 using PersonalLibrary.Application.Catalog.Repositories;
 using PersonalLibrary.Application.Common.Authentication;
 using PersonalLibrary.Application.Libraries.Exceptions;
@@ -76,6 +77,48 @@ public sealed class LibraryBookService(
         return copies.Select(Map).ToList();
     }
 
+    public async Task<BookOwnershipResult> CheckOwnershipAsync(
+        Guid libraryId,
+        string isbn,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateId(libraryId, "LibraryId");
+        var normalizedIsbn = IsbnNormalizer.Normalize(isbn);
+
+        var userId = GetRequiredUserId();
+        var library = await libraryRepository.GetByIdAsync(libraryId, cancellationToken)
+            ?? throw new LibraryNotFoundException(libraryId);
+        EnsureAccess(library, userId, requireWriteAccess: false);
+
+        var edition = await editionRepository.GetByIsbnWithDetailsAsync(
+            normalizedIsbn,
+            cancellationToken);
+        if (edition is null)
+        {
+            return new BookOwnershipResult(
+                normalizedIsbn,
+                false,
+                0,
+                null,
+                null,
+                []);
+        }
+
+        var copies = await bookCopyRepository.GetAllByLibraryAndBookEditionIdAsync(
+            libraryId,
+            edition.Id,
+            cancellationToken);
+        var copyViewModels = copies.Select(Map).ToList();
+
+        return new BookOwnershipResult(
+            normalizedIsbn,
+            copyViewModels.Count > 0,
+            copyViewModels.Count,
+            edition.BookId,
+            edition.Id,
+            copyViewModels);
+    }
+
     private static void ValidateCopy(AddBookCopyDto dto)
     {
         if (!Enum.IsDefined(dto.Format))
@@ -111,8 +154,9 @@ public sealed class LibraryBookService(
 
     private static void EnsureAccess(Library library, Guid userId, bool requireWriteAccess)
     {
-        var membership = library.Members.SingleOrDefault(member => member.UserId == userId)
-            ?? throw new LibraryAccessDeniedException(library.Id, userId);
+        var membership = (library.CreatedByUserId == userId) ? new LibraryMember { UserId = userId, Role = LibraryMemberRole.Owner } : library.Members.SingleOrDefault(member => member.UserId == userId);
+        if (membership is null)
+            throw new LibraryAccessDeniedException(library.Id, userId);
         if (requireWriteAccess && membership.Role is not (LibraryMemberRole.Owner or LibraryMemberRole.Editor))
             throw new LibraryAccessDeniedException(library.Id, userId);
     }
@@ -174,4 +218,5 @@ public sealed class LibraryBookService(
             copy.CreatedAt,
             copy.UpdatedAt);
     }
+
 }

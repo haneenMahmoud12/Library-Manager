@@ -37,7 +37,7 @@ internal sealed class OpenLibraryMetadataProvider(HttpClient httpClient) : IBook
 
         return new BookMetadata(
             edition.Title.Trim(),
-            Normalize(edition.Subtitle),
+            null,
             GetDescription(edition.Description),
             language,
             ParseYear(edition.PublishDate),

@@ -117,11 +117,16 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    //await using (var scope = app.Services.CreateAsyncScope())
-    //{
-    //    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    //    await DatabaseSeeder.SeedCatalogAsync(context);
-    //}
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
+        await OpenLibraryDatabaseSeeder.SeedFromSearchAsync(
+            context,
+            httpClientFactory.CreateClient(),
+            query: "title:\"Harry Potter\" language:eng",
+            maximumBooks: 100);
+    }
 
     app.UseSwagger();
     app.UseSwaggerUI();
