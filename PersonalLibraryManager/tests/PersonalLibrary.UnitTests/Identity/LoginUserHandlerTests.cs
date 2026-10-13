@@ -87,6 +87,12 @@ public sealed class LoginUserHandlerTests
             string refreshToken,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task RevokeAsync(
+            Guid userId,
+            string refreshToken,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class StubEmailService : IEmailService

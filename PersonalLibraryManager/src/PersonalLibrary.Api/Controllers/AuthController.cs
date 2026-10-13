@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PersonalLibrary.Api.Contracts.Common;
 using PersonalLibrary.Api.Contracts.Identity;
+using PersonalLibrary.Application.Common.Authentication;
 using PersonalLibrary.Application.Identity.Models;
 using PersonalLibrary.Application.Identity.Services;
 
@@ -9,7 +10,9 @@ namespace PersonalLibrary.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public sealed class AuthController(IAuthService authService) : ControllerBase
+public sealed class AuthController(
+    IAuthService authService,
+    ICurrentUserContext currentUser) : ControllerBase
 {
     [AllowAnonymous]
     [HttpPost("register")]
@@ -87,5 +90,21 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
         var result = await authService.RefreshTokenAsync(request.RefreshToken, cancellationToken);
 
         return Ok(ApiResponse.Succeeded(result, "Token refreshed."));
+    }
+
+    [Authorize]
+    [HttpPost("logout")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Logout(
+        LogoutRequest request,
+        CancellationToken cancellationToken)
+    {
+        await authService.LogoutAsync(
+            currentUser.UserId ?? Guid.Empty,
+            request.RefreshToken,
+            cancellationToken);
+
+        return NoContent();
     }
 }

@@ -126,5 +126,11 @@ public sealed class RegisterUserHandlerTests
             string refreshToken,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task RevokeAsync(
+            Guid userId,
+            string refreshToken,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

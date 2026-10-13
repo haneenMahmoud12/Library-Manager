@@ -11,4 +11,9 @@ public interface ITokenService
     Task<TokenPairResult?> RefreshAsync(
         string refreshToken,
         CancellationToken cancellationToken = default);
+
+    Task RevokeAsync(
+        Guid userId,
+        string refreshToken,
+        CancellationToken cancellationToken = default);
 }

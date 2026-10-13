@@ -155,4 +155,18 @@ public sealed class AuthService(
                 "InvalidRefreshToken",
                 "Invalid or expired refresh token.");
     }
+
+    public async Task LogoutAsync(
+        Guid userId,
+        string refreshToken,
+        CancellationToken cancellationToken = default)
+    {
+        if (userId == Guid.Empty)
+            throw new UnauthorizedAccessException("An authenticated user is required.");
+
+        if (string.IsNullOrWhiteSpace(refreshToken))
+            throw new AuthenticationFlowException("InvalidRefreshToken", "Invalid refresh token.");
+
+        await tokenService.RevokeAsync(userId, refreshToken, cancellationToken);
+    }
 }

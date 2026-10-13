@@ -24,4 +24,9 @@ public interface IAuthService
     Task<TokenPairResult> RefreshTokenAsync(
         string refreshToken,
         CancellationToken cancellationToken = default);
+
+    Task LogoutAsync(
+        Guid userId,
+        string refreshToken,
+        CancellationToken cancellationToken = default);
 }

@@ -109,6 +109,41 @@ internal sealed class JwtTokenService(
         });
     }
 
+    public async Task RevokeAsync(
+        Guid userId,
+        string refreshToken,
+        CancellationToken cancellationToken = default)
+    {
+        var tokenHash = HashToken(refreshToken);
+        var strategy = context.Database.CreateExecutionStrategy();
+
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await context.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable,
+                cancellationToken);
+
+            var stored = await context.RefreshTokens.SingleOrDefaultAsync(
+                token => token.TokenHash == tokenHash && token.UserId == userId,
+                cancellationToken);
+
+            if (stored is null)
+                return;
+
+            var now = DateTime.UtcNow;
+            await context.RefreshTokens
+                .Where(token =>
+                    token.UserId == userId &&
+                    token.FamilyId == stored.FamilyId &&
+                    token.RevokedAtUtc == null)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(token => token.RevokedAtUtc, now),
+                    cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+        });
+    }
+
     private TokenPairResult CreateTokenPair(
         AuthenticatedUserResult user,
         string refreshToken,
