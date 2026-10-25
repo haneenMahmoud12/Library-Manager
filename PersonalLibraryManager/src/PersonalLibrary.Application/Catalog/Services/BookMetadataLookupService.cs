@@ -53,13 +53,11 @@ public sealed class BookMetadataLookupService(
 
     public async Task<BookMetadataLookupResult> ImportAsync(
         string isbn,
-        BookMetadata metadata,
+        BookMetadata? metadata,
         bool confirmWebMetadata,
         CancellationToken cancellationToken = default)
     {
         var normalizedIsbn = IsbnNormalizer.Normalize(isbn);
-        ValidateForImport(normalizedIsbn, metadata, confirmWebMetadata);
-
         var localEdition = await editionRepository.GetByIsbnWithDetailsAsync(
             normalizedIsbn,
             cancellationToken);
@@ -75,15 +73,92 @@ public sealed class BookMetadataLookupService(
                 MapLocal(localEdition));
         }
 
-        var (bookId, editionId) = await PersistAsync(normalizedIsbn, metadata, cancellationToken);
+        if (metadata is null)
+        {
+            throw new CatalogValidationException(
+                "Metadata",
+                "Metadata is required when the ISBN does not exist in the local catalogue.");
+        }
+
+        ValidateForImport(normalizedIsbn, metadata, confirmWebMetadata);
+
+        BookEdition? importedEdition = null;
+        await unitOfWork.ExecuteInTransactionAsync(
+            async transactionCancellationToken =>
+            {
+                importedEdition = await ResolveEditionForImportAsync(
+                    normalizedIsbn,
+                    metadata,
+                    confirmWebMetadata,
+                    transactionCancellationToken);
+            },
+            cancellationToken: cancellationToken);
+
         return new BookMetadataLookupResult(
             false,
-            bookId,
-            editionId,
+            importedEdition!.BookId,
+            importedEdition.Id,
             false,
             null,
             metadata.Provenance.Sources ?? [],
             metadata);
+    }
+
+    public async Task<BookEdition> ResolveEditionForImportAsync(
+        string isbn,
+        BookMetadata? metadata,
+        bool confirmWebMetadata,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedIsbn = IsbnNormalizer.Normalize(isbn);
+        var existingEdition = await editionRepository.GetByIsbnWithDetailsAsync(
+            normalizedIsbn,
+            cancellationToken);
+        if (existingEdition is not null)
+            return existingEdition;
+
+        if (metadata is null)
+        {
+            throw new CatalogValidationException(
+                "Metadata",
+                "Metadata is required when the ISBN does not exist in the local catalogue.");
+        }
+
+        ValidateForImport(normalizedIsbn, metadata, confirmWebMetadata);
+
+        var authors = await ResolveAuthorsAsync(metadata.Authors, cancellationToken);
+        var book = await ResolveBookAsync(metadata, authors, cancellationToken);
+        var publisher = await ResolvePublisherAsync(
+            metadata.Edition.PublisherName,
+            cancellationToken);
+
+        var isbn10 = NormalizeProviderIsbn(metadata.Edition.Isbn10, 10);
+        var isbn13 = NormalizeProviderIsbn(metadata.Edition.Isbn13, 13);
+        if (normalizedIsbn.Length == 10)
+            isbn10 ??= normalizedIsbn;
+        else
+            isbn13 ??= normalizedIsbn;
+
+        var edition = new BookEdition
+        {
+            Id = Guid.NewGuid(),
+            BookId = book.Id,
+            PublisherId = publisher?.Id,
+            Isbn10 = isbn10,
+            Isbn13 = isbn13,
+            EditionName = Limit(metadata.Edition.EditionName, 200),
+            LanguageCode = Limit(metadata.LanguageCode, 10),
+            PublicationDate = ParsePublicationDate(metadata.Edition.PublishedDate),
+            PageCount = metadata.Edition.PageCount is > 0 ? metadata.Edition.PageCount : null,
+            CoverImageUrl = Limit(metadata.Edition.CoverImageUrl, 1000),
+            Description = Normalize(metadata.Description),
+            CreatedAt = DateTime.UtcNow,
+            Book = book,
+            Publisher = publisher
+        };
+
+        editionRepository.Add(edition);
+        return edition;
     }
 
     private static void ValidateForImport(
@@ -130,68 +205,6 @@ public sealed class BookMetadataLookupService(
                 "Sources",
                 "Web-search metadata must include at least one source.");
         }
-    }
-
-    private async Task<(Guid BookId, Guid EditionId)> PersistAsync(
-        string requestedIsbn,
-        BookMetadata metadata,
-        CancellationToken cancellationToken)
-    {
-        Guid bookId = default;
-        Guid editionId = default;
-
-        await unitOfWork.ExecuteInTransactionAsync(
-            async transactionCancellationToken =>
-            {
-                // Recheck inside the transaction in case another request imported it.
-                var existingEdition = await editionRepository.GetByIsbnWithDetailsAsync(
-                    requestedIsbn,
-                    transactionCancellationToken);
-                if (existingEdition is not null)
-                {
-                    bookId = existingEdition.BookId;
-                    editionId = existingEdition.Id;
-                    return;
-                }
-
-                var authors = await ResolveAuthorsAsync(metadata.Authors, transactionCancellationToken);
-                var book = await ResolveBookAsync(metadata, authors, transactionCancellationToken);
-                var publisher = await ResolvePublisherAsync(
-                    metadata.Edition.PublisherName,
-                    transactionCancellationToken);
-
-                var isbn10 = NormalizeProviderIsbn(metadata.Edition.Isbn10, 10);
-                var isbn13 = NormalizeProviderIsbn(metadata.Edition.Isbn13, 13);
-                if (requestedIsbn.Length == 10)
-                    isbn10 ??= requestedIsbn;
-                else
-                    isbn13 ??= requestedIsbn;
-
-                var edition = new BookEdition
-                {
-                    Id = Guid.NewGuid(),
-                    BookId = book.Id,
-                    PublisherId = publisher?.Id,
-                    Isbn10 = isbn10,
-                    Isbn13 = isbn13,
-                    EditionName = Limit(metadata.Edition.EditionName, 200),
-                    LanguageCode = Limit(metadata.LanguageCode, 10),
-                    PublicationDate = ParsePublicationDate(metadata.Edition.PublishedDate),
-                    PageCount = metadata.Edition.PageCount is > 0 ? metadata.Edition.PageCount : null,
-                    CoverImageUrl = Limit(metadata.Edition.CoverImageUrl, 1000),
-                    Description = Normalize(metadata.Description),
-                    CreatedAt = DateTime.UtcNow,
-                    Book = book,
-                    Publisher = publisher
-                };
-
-                editionRepository.Add(edition);
-                bookId = book.Id;
-                editionId = edition.Id;
-            },
-            cancellationToken: cancellationToken);
-
-        return (bookId, editionId);
     }
 
     private async Task<List<Author>> ResolveAuthorsAsync(

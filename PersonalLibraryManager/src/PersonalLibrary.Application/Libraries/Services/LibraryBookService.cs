@@ -2,6 +2,7 @@ using PersonalLibrary.Application.Abstractions;
 using PersonalLibrary.Application.Catalog.Exceptions;
 using PersonalLibrary.Application.Catalog.Metadata;
 using PersonalLibrary.Application.Catalog.Repositories;
+using PersonalLibrary.Application.Catalog.Services;
 using PersonalLibrary.Application.Common.Authentication;
 using PersonalLibrary.Application.Libraries.Exceptions;
 using PersonalLibrary.Application.Libraries.Models;
@@ -17,6 +18,7 @@ public sealed class LibraryBookService(
     ILibraryRepository libraryRepository,
     IBookCopyRepository bookCopyRepository,
     IBookEditionRepository editionRepository,
+    IBookMetadataLookupService metadataLookupService,
     IUnitOfWork unitOfWork,
     ICurrentUserContext currentUser) : ILibraryBookService
 {
@@ -77,6 +79,26 @@ public sealed class LibraryBookService(
         return copies.Select(Map).ToList();
     }
 
+    public async Task<LibraryBookViewModel> GetByIdAsync(
+        Guid libraryId,
+        Guid bookCopyId,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateId(libraryId, "LibraryId");
+        ValidateId(bookCopyId, "BookCopyId");
+
+        var userId = GetRequiredUserId();
+        var library = await libraryRepository.GetByIdAsync(libraryId, cancellationToken)
+            ?? throw new LibraryNotFoundException(libraryId);
+        EnsureAccess(library, userId, requireWriteAccess: false);
+
+        var copy = await bookCopyRepository.GetByIdWithDetailsAsync(bookCopyId, cancellationToken);
+        if (copy is null || copy.LibraryId != libraryId)
+            throw new BookCopyNotFoundException(libraryId, bookCopyId);
+
+        return Map(copy);
+    }
+
     public async Task<BookOwnershipResult> CheckOwnershipAsync(
         Guid libraryId,
         string isbn,
@@ -117,6 +139,80 @@ public sealed class LibraryBookService(
             edition.BookId,
             edition.Id,
             copyViewModels);
+    }
+
+    public async Task<LibraryBookViewModel> ImportAsync(
+        Guid libraryId,
+        string isbn,
+        ImportBookToLibraryDto request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateId(libraryId, "LibraryId");
+        var normalizedIsbn = IsbnNormalizer.Normalize(isbn);
+
+        var copyDetails = new AddBookCopyDto(
+            Guid.Empty,
+            request.LocationId,
+            request.Format,
+            request.ReadingStatus,
+            request.Condition,
+            request.AcquisitionDate,
+            request.PurchasePrice,
+            request.CurrencyCode,
+            request.IsSigned,
+            request.IsFavourite,
+            request.PersonalNotes);
+        ValidateCopy(copyDetails);
+
+        var userId = GetRequiredUserId();
+        BookCopy? createdCopy = null;
+        BookEdition? resolvedEdition = null;
+        LibraryLocation? resolvedLocation = null;
+
+        await unitOfWork.ExecuteInTransactionAsync(
+            async transactionCancellationToken =>
+            {
+                var library = await libraryRepository.GetForUpdateAsync(
+                    libraryId,
+                    transactionCancellationToken)
+                    ?? throw new LibraryNotFoundException(libraryId);
+                EnsureAccess(library, userId, requireWriteAccess: true);
+
+                resolvedLocation = GetLocation(library, request.LocationId);
+                resolvedEdition = await metadataLookupService.ResolveEditionForImportAsync(
+                    normalizedIsbn,
+                    request.Metadata,
+                    request.ConfirmWebMetadata,
+                    transactionCancellationToken);
+
+                createdCopy = new BookCopy
+                {
+                    Id = Guid.NewGuid(),
+                    LibraryId = libraryId,
+                    BookEditionId = resolvedEdition.Id,
+                    LocationId = resolvedLocation?.Id,
+                    AddedByUserId = userId,
+                    Format = request.Format,
+                    ReadingStatus = request.ReadingStatus,
+                    Condition = request.Condition,
+                    AcquisitionDate = request.AcquisitionDate,
+                    PurchasePrice = request.PurchasePrice,
+                    CurrencyCode = NormalizeCurrency(request.CurrencyCode),
+                    IsSigned = request.IsSigned,
+                    IsFavourite = request.IsFavourite,
+                    PersonalNotes = NormalizeOptional(request.PersonalNotes),
+                    CreatedAt = DateTime.UtcNow,
+                    Library = library,
+                    BookEdition = resolvedEdition,
+                    Location = resolvedLocation
+                };
+
+                bookCopyRepository.Add(createdCopy);
+            },
+            cancellationToken: cancellationToken);
+
+        return Map(createdCopy!, resolvedEdition!, resolvedLocation);
     }
 
     private static void ValidateCopy(AddBookCopyDto dto)

@@ -52,14 +52,19 @@ public sealed class GlobalExceptionMiddleware(
 
         context.Response.Clear();
         context.Response.StatusCode = mapped.StatusCode;
-        context.Response.ContentType = "application/json";
+        context.Response.ContentType = "application/problem+json";
+        if (mapped.StatusCode == StatusCodes.Status429TooManyRequests)
+            context.Response.Headers.RetryAfter = "60";
+        else if (mapped.StatusCode == StatusCodes.Status503ServiceUnavailable)
+            context.Response.Headers.RetryAfter = "30";
 
         await context.Response.WriteAsJsonAsync(
-            ApiResponse.Failed(
+            ApiProblemDetails.Create(
+                mapped.StatusCode,
                 mapped.Code,
                 mapped.Message,
-                mapped.Details,
-                context.TraceIdentifier),
+                errors: mapped.Details,
+                traceId: context.TraceIdentifier),
             context.RequestAborted);
     }
 
@@ -99,6 +104,10 @@ public sealed class GlobalExceptionMiddleware(
             StatusCodes.Status404NotFound,
             "LibraryNotFound",
             "The requested library was not found."),
+        BookCopyNotFoundException => new(
+            StatusCodes.Status404NotFound,
+            "BookCopyNotFound",
+            "The requested book copy was not found in this library."),
         LibraryAccessDeniedException => new(
             StatusCodes.Status403Forbidden,
             "LibraryAccessDenied",

@@ -1,6 +1,8 @@
 using System.Data;
 using PersonalLibrary.Application.Abstractions;
 using PersonalLibrary.Application.Catalog.Repositories;
+using PersonalLibrary.Application.Catalog.Metadata;
+using PersonalLibrary.Application.Catalog.Services;
 using PersonalLibrary.Application.Common.Authentication;
 using PersonalLibrary.Application.Common.Pagination;
 using PersonalLibrary.Application.Libraries.Exceptions;
@@ -112,6 +114,75 @@ public sealed class LibraryBookOwnershipTests
         Assert.Equal(result.Id, copyRepository.AddedCopy.Id);
     }
 
+    [Fact]
+    public async Task ImportAsync_reuses_a_local_edition_and_creates_one_copy_transactionally()
+    {
+        var userId = Guid.NewGuid();
+        var library = CreateLibrary(userId, LibraryMemberRole.Editor);
+        var edition = CreateEdition();
+        var copyRepository = new StubBookCopyRepository([]);
+        var service = CreateService(library, edition, copyRepository, userId);
+
+        var result = await service.ImportAsync(
+            library.Id,
+            Isbn,
+            new ImportBookToLibraryDto(
+                null,
+                false,
+                null,
+                BookFormat.Paperback,
+                ReadingStatus.Unread,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
+
+        Assert.NotNull(copyRepository.AddedCopy);
+        Assert.Equal(result.Id, copyRepository.AddedCopy.Id);
+        Assert.Equal(edition.Id, result.BookEditionId);
+        Assert.Equal(library.Id, result.LibraryId);
+        Assert.Equal(1, copyRepository.CopyCount);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_returns_the_copy_only_from_the_requested_library()
+    {
+        var userId = Guid.NewGuid();
+        var library = CreateLibrary(userId);
+        var edition = CreateEdition();
+        var copy = CreateCopy(library.Id, edition);
+        var service = CreateService(
+            library,
+            edition,
+            new StubBookCopyRepository([copy]),
+            userId);
+
+        var result = await service.GetByIdAsync(library.Id, copy.Id);
+
+        Assert.Equal(copy.Id, result.Id);
+        Assert.Equal(library.Id, result.LibraryId);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_returns_not_found_when_copy_belongs_to_another_library()
+    {
+        var userId = Guid.NewGuid();
+        var library = CreateLibrary(userId);
+        var edition = CreateEdition();
+        var copy = CreateCopy(Guid.NewGuid(), edition);
+        var service = CreateService(
+            library,
+            edition,
+            new StubBookCopyRepository([copy]),
+            userId);
+
+        await Assert.ThrowsAsync<BookCopyNotFoundException>(() =>
+            service.GetByIdAsync(library.Id, copy.Id));
+    }
+
     private static LibraryBookService CreateService(
         Library library,
         BookEdition edition,
@@ -121,6 +192,7 @@ public sealed class LibraryBookOwnershipTests
             new StubLibraryRepository(library),
             copyRepository,
             new StubEditionRepository(edition),
+            new StubMetadataLookupService(edition),
             new StubUnitOfWork(),
             new StubCurrentUserContext(userId));
 
@@ -223,6 +295,11 @@ public sealed class LibraryBookOwnershipTests
             copies.Add(entity);
         }
 
+        public Task<BookCopy?> GetByIdWithDetailsAsync(
+            Guid bookCopyId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<BookCopy?>(copies.SingleOrDefault(copy => copy.Id == bookCopyId));
+
         public Task<List<BookCopy>> GetAllByLibraryIdAsync(
             Guid libraryId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
@@ -238,15 +315,41 @@ public sealed class LibraryBookOwnershipTests
         }
     }
 
+    private sealed class StubMetadataLookupService(BookEdition edition)
+        : IBookMetadataLookupService
+    {
+        public Task<BookMetadataLookupResult> PreviewByIsbnAsync(
+            string isbn,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BookMetadataLookupResult> ImportAsync(
+            string isbn,
+            BookMetadata? metadata,
+            bool confirmWebMetadata,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BookEdition> ResolveEditionForImportAsync(
+            string isbn,
+            BookMetadata? metadata,
+            bool confirmWebMetadata,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(edition);
+    }
+
     private sealed class StubUnitOfWork : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(1);
-        public Task<int> ExecuteInTransactionAsync(
+        public async Task<int> ExecuteInTransactionAsync(
             Func<CancellationToken, Task> operation,
             IsolationLevel isolationLevel = IsolationLevel.ReadCommitted,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            CancellationToken cancellationToken = default)
+        {
+            await operation(cancellationToken);
+            return 1;
+        }
     }
 
     private abstract class UnsupportedRepository<T> : IRepository<T> where T : AuditableEntity

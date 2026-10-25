@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PersonalLibrary.Api.Caching;
+using PersonalLibrary.Api.Pagination;
 using PersonalLibrary.Api.Contracts.Catalog;
 using PersonalLibrary.Api.Contracts.Common;
 using PersonalLibrary.Application.Catalog.Models;
 using PersonalLibrary.Application.Catalog.Metadata;
 using PersonalLibrary.Application.Catalog.Services;
+using PersonalLibrary.Application.Common.Pagination;
 
 namespace PersonalLibrary.Api.Controllers;
 
@@ -18,7 +21,7 @@ public sealed class BooksController(
     [HttpPost]
     public async Task<ActionResult<ApiResponse<BookViewModel>>> Create(
         SaveBookRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         var result = await bookService.SaveAsync(
             new CreateBookDto(
@@ -26,10 +29,18 @@ public sealed class BooksController(
                 request.OriginalLanguageCode, request.FirstPublishedYear,
                 request.Authors.Select(author => new BookAuthorDto(author.AuthorId, author.AuthorOrder)).ToList()),
             cancellationToken);
-        return Created($"/api/books/{result.Id}", ApiResponse.Succeeded(result, "Book created."));
+        return CreatedAtAction(
+            nameof(GetById),
+            new { bookId = result.Id },
+            ApiResponse.Succeeded(
+                result,
+                "Book created.",
+                ApiLinks.ForResource(
+                    $"/api/books/{result.Id}",
+                    ("editions", $"/api/books/{result.Id}/editions", HttpMethods.Get))));
     }
 
-    [HttpPatch("{bookId:guid}")]
+    [HttpPut("{bookId:guid}")]
     public async Task<ActionResult<ApiResponse<BookViewModel>>> Update(
         Guid bookId,
         SaveBookRequest request,
@@ -42,7 +53,10 @@ public sealed class BooksController(
                 request.OriginalLanguageCode, request.FirstPublishedYear,
                 request.Authors.Select(author => new BookAuthorDto(author.AuthorId, author.AuthorOrder)).ToList()),
             cancellationToken);
-        return Ok(ApiResponse.Succeeded(result, "Book updated."));
+        return Ok(ApiResponse.Succeeded(
+            result,
+            "Book updated.",
+            ApiLinks.Self($"/api/books/{result.Id}")));
     }
 
     [HttpGet("{bookId:guid}")]
@@ -51,14 +65,22 @@ public sealed class BooksController(
         CancellationToken cancellationToken)
     {
         var result = await bookService.GetByIdAsync(bookId, cancellationToken);
-        return Ok(ApiResponse.Succeeded(result, "Book retrieved."));
+        if (HttpEntityTags.IsNotModified(HttpContext, result.Id, result.CreatedAt, result.UpdatedAt))
+            return StatusCode(StatusCodes.Status304NotModified);
+        return Ok(ApiResponse.Succeeded(
+            result,
+            "Book retrieved.",
+            ApiLinks.ForResource(
+                $"/api/books/{result.Id}",
+                ("editions", $"/api/books/{result.Id}/editions", HttpMethods.Get),
+                ("authors", $"/api/books/{result.Id}/authors", HttpMethods.Get))));
     }
 
-    [HttpGet("lookup/{isbn}")]
+    [HttpGet("/api/book-metadata/{isbn}")]
     [ProducesResponseType<ApiResponse<BookMetadataLookupResult>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status503ServiceUnavailable)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<ApiResponse<BookMetadataLookupResult>>> LookupByIsbn(
         string isbn,
         CancellationToken cancellationToken)
@@ -73,9 +95,9 @@ public sealed class BooksController(
                     : "Book metadata found. Please review before adding."));
     }
 
-    [HttpPost("import/{isbn}")]
+    [HttpPut("/api/book-editions/by-isbn/{isbn}")]
     [ProducesResponseType<ApiResponse<BookMetadataLookupResult>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiResponse<BookMetadataLookupResult>>> ImportByIsbn(
         string isbn,
         ImportBookMetadataRequest request,
@@ -86,19 +108,31 @@ public sealed class BooksController(
             request.Metadata,
             request.ConfirmWebMetadata,
             cancellationToken);
-        return Ok(ApiResponse.Succeeded(
+        var response = ApiResponse.Succeeded(
             result,
             result.FoundInLocalCatalog
                 ? "The book edition already exists in the catalog."
-                : "Book metadata imported into the catalog."));
+                : "Book metadata imported into the catalog.");
+
+        return result.FoundInLocalCatalog
+            ? Ok(response)
+            : CreatedAtAction(
+                nameof(BookEditionsController.GetById),
+                "BookEditions",
+                new { editionId = result.BookEditionId },
+                response);
     }
 
     [HttpGet("/api/authors/{authorId:guid}/books")]
-    public async Task<ActionResult<ApiResponse<List<BookViewModel>>>> GetByAuthorId(
+    public async Task<ActionResult<ApiResponse<PagedResult<BookViewModel>>>> GetByAuthorId(
         Guid authorId,
-        CancellationToken cancellationToken)
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = PageRequest.DefaultPageSize,
+        CancellationToken cancellationToken = default)
     {
         var result = await bookService.GetAllByAuthorIdAsync(authorId, cancellationToken);
-        return Ok(ApiResponse.Succeeded(result, "Author books retrieved."));
+        return Ok(ApiResponse.Succeeded(
+            ApiPage.Create(result, pageNumber, pageSize),
+            "Author books retrieved."));
     }
 }

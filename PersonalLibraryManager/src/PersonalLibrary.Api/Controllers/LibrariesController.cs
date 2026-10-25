@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PersonalLibrary.Api.Caching;
 using PersonalLibrary.Api.Contracts.Common;
 using PersonalLibrary.Api.Contracts.Libraries;
 using PersonalLibrary.Application.Common.Pagination;
@@ -15,8 +16,8 @@ public sealed class LibrariesController(ILibraryService libraryService) : Contro
 {
     [HttpPost]
     [ProducesResponseType<ApiResponse<LibraryViewModel>>(StatusCodes.Status201Created)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<ApiResponse<LibraryViewModel>>> Create(
         CreateLibraryRequest request,
         CancellationToken cancellationToken)
@@ -28,17 +29,21 @@ public sealed class LibrariesController(ILibraryService libraryService) : Contro
                 request.Visibility),
             cancellationToken);
 
-        return Created(
-            $"/api/libraries/{result.Id}",
-            ApiResponse.Succeeded(result, "Library created."));
+        return CreatedAtAction(
+            nameof(GetById),
+            new { libraryId = result.Id },
+            ApiResponse.Succeeded(
+                result,
+                "Library created.",
+                LibraryLinks(result.Id)));
     }
 
     [HttpPatch("{libraryId:guid}")]
     [ProducesResponseType<ApiResponse<LibraryViewModel>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<LibraryViewModel>>> Update(
         Guid libraryId,
         UpdateLibraryRequest request,
@@ -52,13 +57,13 @@ public sealed class LibrariesController(ILibraryService libraryService) : Contro
                 request.Visibility),
             cancellationToken);
 
-        return Ok(ApiResponse.Succeeded(result, "Library updated."));
+        return Ok(ApiResponse.Succeeded(result, "Library updated.", LibraryLinks(result.Id)));
     }
 
     [HttpGet]
     [ProducesResponseType<ApiResponse<PagedResult<LibraryListItemViewModel>>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<ApiResponse<PagedResult<LibraryListItemViewModel>>>> GetMyLibraries(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = PageRequest.DefaultPageSize,
@@ -80,13 +85,22 @@ public sealed class LibrariesController(ILibraryService libraryService) : Contro
 
     [HttpGet("{libraryId:guid}")]
     [ProducesResponseType<ApiResponse<LibraryViewModel>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<LibraryViewModel>>> GetById(
         Guid libraryId,
         CancellationToken cancellationToken)
     {
         var result = await libraryService.GetByIdAsync(libraryId, cancellationToken);
-        return Ok(ApiResponse.Succeeded(result, "Library retrieved."));
+        if (HttpEntityTags.IsNotModified(HttpContext, result.Id, result.CreatedAt, result.UpdatedAt))
+            return StatusCode(StatusCodes.Status304NotModified);
+        return Ok(ApiResponse.Succeeded(result, "Library retrieved.", LibraryLinks(result.Id)));
     }
+
+    private static IReadOnlyDictionary<string, ApiLink> LibraryLinks(Guid libraryId) =>
+        ApiLinks.ForResource(
+            $"/api/libraries/{libraryId}",
+            ("books", $"/api/libraries/{libraryId}/books", HttpMethods.Get),
+            ("addBook", $"/api/libraries/{libraryId}/books", HttpMethods.Post),
+            ("importBook", $"/api/libraries/{libraryId}/book-imports/{{isbn}}", HttpMethods.Post));
 }

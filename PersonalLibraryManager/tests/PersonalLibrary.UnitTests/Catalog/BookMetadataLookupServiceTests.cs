@@ -90,6 +90,29 @@ public sealed class BookMetadataLookupServiceTests
         Assert.Equal(1, unitOfWork.TransactionCalls);
     }
 
+    [Fact]
+    public async Task ImportAsync_reuses_local_edition_without_requiring_metadata()
+    {
+        var author = new Author { Id = Guid.NewGuid(), Name = "George Orwell" };
+        var book = new Book { Id = Guid.NewGuid(), Title = "Nineteen Eighty-Four" };
+        book.BookAuthors.Add(new BookAuthor
+        {
+            BookId = book.Id, AuthorId = author.Id, Book = book, Author = author, AuthorOrder = 1
+        });
+        var edition = new BookEdition
+        {
+            Id = Guid.NewGuid(), BookId = book.Id, Book = book, Isbn13 = ValidIsbn
+        };
+        var service = CreateService(
+            new StubEditionRepository(edition),
+            new StubMetadataProvider(null));
+
+        var result = await service.ImportAsync(ValidIsbn, null, false);
+
+        Assert.True(result.FoundInLocalCatalog);
+        Assert.Equal(edition.Id, result.BookEditionId);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("1234567890")]

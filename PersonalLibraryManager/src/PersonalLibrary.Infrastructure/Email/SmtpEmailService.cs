@@ -18,7 +18,7 @@ internal sealed class SmtpEmailService(IOptions<SmtpEmailOptions> options)
         EnsureConfigured(settings);
 
         var confirmationUrl =
-            $"{settings.PublicApiBaseUrl.TrimEnd('/')}/api/auth/confirm-email" +
+            $"{settings.PublicApiBaseUrl.TrimEnd('/')}/api/auth/email-confirmations/prompt" +
             $"?userId={challenge.UserId:D}" +
             $"&token={Uri.EscapeDataString(challenge.Token)}";
 

@@ -1,4 +1,5 @@
 using PersonalLibrary.Application.Catalog.Metadata;
+using PersonalLibrary.Domain.Catalog;
 
 namespace PersonalLibrary.Application.Catalog.Services;
 
@@ -10,7 +11,13 @@ public interface IBookMetadataLookupService
 
     Task<BookMetadataLookupResult> ImportAsync(
         string isbn,
-        BookMetadata metadata,
+        BookMetadata? metadata,
+        bool confirmWebMetadata,
+        CancellationToken cancellationToken = default);
+
+    Task<BookEdition> ResolveEditionForImportAsync(
+        string isbn,
+        BookMetadata? metadata,
         bool confirmWebMetadata,
         CancellationToken cancellationToken = default);
 }

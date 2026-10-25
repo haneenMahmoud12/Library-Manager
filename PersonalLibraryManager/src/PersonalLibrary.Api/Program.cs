@@ -89,11 +89,16 @@ builder.Services
                             : error.ErrorMessage)
                         .ToArray());
 
-            return new BadRequestObjectResult(ApiResponse.Failed(
+            return new BadRequestObjectResult(ApiProblemDetails.Create(
+                StatusCodes.Status400BadRequest,
                 "ValidationFailed",
+                "Request validation failed",
                 "One or more validation errors occurred.",
                 details,
-                context.HttpContext.TraceIdentifier));
+                context.HttpContext.TraceIdentifier))
+            {
+                ContentTypes = { "application/problem+json" }
+            };
         };
     });
 
@@ -133,6 +138,22 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
+app.Use(async (context, next) =>
+{
+    var isRead = HttpMethods.IsGet(context.Request.Method) ||
+                 HttpMethods.IsHead(context.Request.Method);
+    var isAuthentication = context.Request.Path.StartsWithSegments("/api/auth");
+    var isPrivateLibrary = context.Request.Path.StartsWithSegments("/api/libraries");
+
+    context.Response.Headers.CacheControl = isAuthentication || !isRead
+        ? "no-store"
+        : isPrivateLibrary
+            ? "private, no-cache"
+            : "private, max-age=60";
+    context.Response.Headers.Vary = "Authorization";
+
+    await next();
+});
 app.UseStatusCodePages(async context =>
 {
     var (code, message) = context.HttpContext.Response.StatusCode switch
@@ -165,8 +186,14 @@ static Task WriteFailureResponseAsync(
         return Task.CompletedTask;
 
     context.Response.StatusCode = statusCode;
-    context.Response.ContentType = "application/json";
+    context.Response.ContentType = "application/problem+json";
+    if (statusCode == StatusCodes.Status401Unauthorized)
+        context.Response.Headers.WWWAuthenticate = "Bearer";
     return context.Response.WriteAsJsonAsync(
-        ApiResponse.Failed(code, message, traceId: context.TraceIdentifier),
+        ApiProblemDetails.Create(
+            statusCode,
+            code,
+            message,
+            traceId: context.TraceIdentifier),
         context.RequestAborted);
 }

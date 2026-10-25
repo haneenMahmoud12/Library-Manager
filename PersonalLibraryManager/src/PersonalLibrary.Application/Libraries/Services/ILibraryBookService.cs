@@ -9,6 +9,11 @@ public interface ILibraryBookService
         AddBookCopyDto dto,
         CancellationToken cancellationToken = default);
 
+    Task<LibraryBookViewModel> GetByIdAsync(
+        Guid libraryId,
+        Guid bookCopyId,
+        CancellationToken cancellationToken = default);
+
     Task<List<LibraryBookViewModel>> GetContentsAsync(
         Guid libraryId,
         CancellationToken cancellationToken = default);
@@ -16,5 +21,11 @@ public interface ILibraryBookService
     Task<BookOwnershipResult> CheckOwnershipAsync(
         Guid libraryId,
         string isbn,
+        CancellationToken cancellationToken = default);
+
+    Task<LibraryBookViewModel> ImportAsync(
+        Guid libraryId,
+        string isbn,
+        ImportBookToLibraryDto request,
         CancellationToken cancellationToken = default);
 }

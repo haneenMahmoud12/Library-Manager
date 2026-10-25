@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Encodings.Web;
 using PersonalLibrary.Api.Contracts.Common;
 using PersonalLibrary.Api.Contracts.Identity;
 using PersonalLibrary.Application.Common.Authentication;
@@ -17,8 +18,8 @@ public sealed class AuthController(
     [AllowAnonymous]
     [HttpPost("register")]
     [ProducesResponseType<ApiResponse<RegisterViewModel>>(StatusCodes.Status201Created)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ApiResponse<RegisterViewModel>>> Register(
         RegisterRequest request,
         CancellationToken cancellationToken)
@@ -31,16 +32,21 @@ public sealed class AuthController(
                 request.Name),
             cancellationToken);
 
-        return Created(
-            $"/api/users/{result.UserId}",
-            ApiResponse.Succeeded(result, "Registration succeeded. Please confirm your email."));
+        return StatusCode(
+            StatusCodes.Status201Created,
+            ApiResponse.Succeeded(
+                result,
+                "Registration succeeded. Please confirm your email.",
+                ApiLinks.Actions(
+                    ("confirmEmail", "/api/auth/email-confirmations", HttpMethods.Post),
+                    ("login", "/api/auth/login", HttpMethods.Post))));
     }
 
     [AllowAnonymous]
     [HttpPost("login")]
     [ProducesResponseType<ApiResponse<LoginViewModel>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<ApiResponse<LoginViewModel>>> Login(
         LoginRequest request,
         CancellationToken cancellationToken)
@@ -53,17 +59,60 @@ public sealed class AuthController(
     }
 
     [AllowAnonymous]
-    [HttpGet("confirm-email")]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<ApiResponse<object?>>> ConfirmEmail(
+    [HttpGet("email-confirmations/prompt")]
+    [Produces("text/html")]
+    public ContentResult EmailConfirmationPrompt(
         [FromQuery] Guid userId,
-        [FromQuery] string token,
+        [FromQuery] string token)
+    {
+        var encodedUserId = HtmlEncoder.Default.Encode(userId.ToString("D"));
+        var encodedToken = HtmlEncoder.Default.Encode(token);
+        const string action = "/api/auth/email-confirmations";
+        var html = $$"""
+            <!doctype html>
+            <html lang="en">
+            <head><meta charset="utf-8"><title>Confirm email</title></head>
+            <body>
+              <main>
+                <h1>Confirm your email address</h1>
+                <form method="post" action="{{action}}">
+                  <input type="hidden" name="UserId" value="{{encodedUserId}}">
+                  <input type="hidden" name="Token" value="{{encodedToken}}">
+                  <button type="submit">Confirm email</button>
+                </form>
+              </main>
+            </body>
+            </html>
+            """;
+        return Content(html, "text/html");
+    }
+
+    [AllowAnonymous]
+    [HttpPost("email-confirmations")]
+    [Consumes("application/json")]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<object?>>> ConfirmEmail(
+        ConfirmEmailRequest request,
         CancellationToken cancellationToken)
     {
-        await authService.ConfirmEmailAsync(userId, token, cancellationToken);
+        await authService.ConfirmEmailAsync(request.UserId, request.Token, cancellationToken);
 
-        return Ok(ApiResponse.Succeeded("Email confirmed. You can now sign in."));
+        return Ok(ApiResponse.Succeeded(message: "Email confirmed. You can now sign in."));
+    }
+
+    [AllowAnonymous]
+    [HttpPost("email-confirmations")]
+    [Consumes("application/x-www-form-urlencoded")]
+    [Produces("text/html")]
+    public async Task<ContentResult> ConfirmEmailFromBrowser(
+        [FromForm] ConfirmEmailRequest request,
+        CancellationToken cancellationToken)
+    {
+        await authService.ConfirmEmailAsync(request.UserId, request.Token, cancellationToken);
+        return Content(
+            "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Email confirmed</title></head><body><main><h1>Email confirmed</h1><p>You can now sign in.</p></main></body></html>",
+            "text/html");
     }
 
     [AllowAnonymous]
@@ -76,13 +125,13 @@ public sealed class AuthController(
         await authService.ResendConfirmationAsync(request.Email, cancellationToken);
 
         return Accepted(ApiResponse.Succeeded(
-            "If the account exists and is unconfirmed, a confirmation email has been sent."));
+            message: "If the account exists and is unconfirmed, a confirmation email has been sent."));
     }
 
     [AllowAnonymous]
     [HttpPost("refresh")]
     [ProducesResponseType<ApiResponse<TokenPairResult>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<ApiResponse<TokenPairResult>>> Refresh(
         RefreshTokenRequest request,
         CancellationToken cancellationToken)
@@ -95,7 +144,7 @@ public sealed class AuthController(
     [Authorize]
     [HttpPost("logout")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Logout(
         LogoutRequest request,
         CancellationToken cancellationToken)
