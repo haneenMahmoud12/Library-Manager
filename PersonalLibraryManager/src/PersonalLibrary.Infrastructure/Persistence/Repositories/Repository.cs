@@ -18,13 +18,19 @@ internal class Repository<T>(ApplicationDbContext context)
         CancellationToken cancellationToken = default) =>
         _entities.FindAsync([id], cancellationToken);
 
-    public async Task<PagedResult<T>> GetPageAsync(
+    public virtual Task<PagedResult<T>> GetPageAsync(
+        PageRequest request,
+        CancellationToken cancellationToken = default) =>
+        GetPageAsync(_entities.AsNoTracking(), request, cancellationToken);
+
+    protected static async Task<PagedResult<T>> GetPageAsync(
+        IQueryable<T> source,
         PageRequest request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var query = ApplySearch(_entities.AsNoTracking(), request.SearchText);
+        var query = ApplySearch(source, request.SearchText);
         var totalCount = await query.LongCountAsync(cancellationToken);
         var items = await ApplyOrdering(
                 query,

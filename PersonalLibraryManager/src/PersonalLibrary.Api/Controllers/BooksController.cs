@@ -18,6 +18,21 @@ public sealed class BooksController(
     IBookService bookService,
     IBookMetadataLookupService metadataLookupService) : ControllerBase
 {
+    [HttpGet]
+    [ProducesResponseType<ApiResponse<PagedResult<BookViewModel>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PagedResult<BookViewModel>>>> GetAll(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = PageRequest.DefaultPageSize,
+        [FromQuery] string? searchText = null,
+        [FromQuery] string orderBy = "Id",
+        [FromQuery] OrderDirection orderDirection = OrderDirection.Ascending,
+        CancellationToken cancellationToken = default)
+    {
+        var page = new PageRequest(pageNumber, pageSize, searchText, orderBy, orderDirection);
+        var result = await bookService.GetAllAsync(page, cancellationToken);
+        return Ok(ApiResponse.Succeeded(result, "Books retrieved."));
+    }
+
     [HttpPost]
     public async Task<ActionResult<ApiResponse<BookViewModel>>> Create(
         SaveBookRequest request,
@@ -128,11 +143,14 @@ public sealed class BooksController(
         Guid authorId,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = PageRequest.DefaultPageSize,
+        [FromQuery] string? searchText = null,
+        [FromQuery] string orderBy = "Id",
+        [FromQuery] OrderDirection orderDirection = OrderDirection.Ascending,
         CancellationToken cancellationToken = default)
     {
         var result = await bookService.GetAllByAuthorIdAsync(authorId, cancellationToken);
         return Ok(ApiResponse.Succeeded(
-            ApiPage.Create(result, pageNumber, pageSize),
+            ApiPage.Create(result, new PageRequest(pageNumber, pageSize, searchText, orderBy, orderDirection)),
             "Author books retrieved."));
     }
 }

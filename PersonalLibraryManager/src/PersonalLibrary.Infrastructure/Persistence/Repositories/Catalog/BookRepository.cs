@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PersonalLibrary.Application.Catalog.Repositories;
+using PersonalLibrary.Application.Common.Pagination;
 using PersonalLibrary.Domain.Catalog;
 
 namespace PersonalLibrary.Infrastructure.Persistence.Repositories.Catalog;
@@ -7,6 +8,11 @@ namespace PersonalLibrary.Infrastructure.Persistence.Repositories.Catalog;
 internal sealed class BookRepository(ApplicationDbContext context)
     : Repository<Book>(context), IBookRepository
 {
+    public override Task<PagedResult<Book>> GetPageAsync(
+        PageRequest request,
+        CancellationToken cancellationToken = default) =>
+        GetPageAsync(DetailsQuery(false), request, cancellationToken);
+
     public Task<Book?> GetByIdWithDetailsAsync(Guid bookId, CancellationToken cancellationToken = default) =>
         DetailsQuery(false).SingleOrDefaultAsync(book => book.Id == bookId, cancellationToken);
 

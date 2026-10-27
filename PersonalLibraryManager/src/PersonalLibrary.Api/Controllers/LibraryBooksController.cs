@@ -58,13 +58,17 @@ public sealed class LibraryBooksController(ILibraryBookService libraryBookServic
         Guid libraryId,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = PageRequest.DefaultPageSize,
+        [FromQuery] string? searchText = null,
+        [FromQuery] string orderBy = "Id",
+        [FromQuery] OrderDirection orderDirection = OrderDirection.Ascending,
         CancellationToken cancellationToken = default)
     {
         var result = await libraryBookService.GetContentsAsync(libraryId, cancellationToken);
+        var page = new PageRequest(pageNumber, pageSize, searchText, orderBy, orderDirection);
         return Ok(ApiResponse.Succeeded(
-            ApiPage.Create(result, pageNumber, pageSize),
+            ApiPage.Create(result, page),
             "Library contents retrieved.",
-            ApiLinks.Self($"/api/libraries/{libraryId}/books?pageNumber={pageNumber}&pageSize={pageSize}")));
+            ApiLinks.Self($"/api/libraries/{libraryId}/books?pageNumber={pageNumber}&pageSize={pageSize}&orderBy={Uri.EscapeDataString(orderBy)}&orderDirection={orderDirection}&searchText={Uri.EscapeDataString(searchText ?? string.Empty)}")));
     }
 
     [HttpGet("{bookCopyId:guid}")]

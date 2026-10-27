@@ -3,6 +3,7 @@ using PersonalLibrary.Application.Catalog.Exceptions;
 using PersonalLibrary.Application.Catalog.Models;
 using PersonalLibrary.Application.Catalog.Repositories;
 using PersonalLibrary.Application.Common.Authentication;
+using PersonalLibrary.Application.Common.Pagination;
 using PersonalLibrary.Domain.Catalog;
 
 namespace PersonalLibrary.Application.Catalog.Services;
@@ -21,9 +22,10 @@ public sealed class AuthorService(
         return Map(author);
     }
 
-    public async Task<List<AuthorViewModel>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<PagedResult<AuthorViewModel>> GetAllAsync(PageRequest page, CancellationToken cancellationToken = default)
     {
-        return (await authorRepository.GetAllAsync(cancellationToken)).Select(Map).ToList();
+        var result = await authorRepository.GetPageAsync(page, cancellationToken);
+        return new PagedResult<AuthorViewModel>(result.Items.Select(Map).ToList(), result.PageNumber, result.PageSize, result.TotalCount);
     }
 
     public async Task<List<AuthorViewModel>> GetAllByBookIdAsync(Guid bookId, CancellationToken cancellationToken = default)

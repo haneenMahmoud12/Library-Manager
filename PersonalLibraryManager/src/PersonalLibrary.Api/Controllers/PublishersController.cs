@@ -15,6 +15,21 @@ namespace PersonalLibrary.Api.Controllers;
 [Route("api/publishers")]
 public sealed class PublishersController(IPublisherService publisherService) : ControllerBase
 {
+    [HttpGet]
+    [ProducesResponseType<ApiResponse<PagedResult<PublisherViewModel>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PagedResult<PublisherViewModel>>>> GetAll(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = PageRequest.DefaultPageSize,
+        [FromQuery] string? searchText = null,
+        [FromQuery] string orderBy = "Id",
+        [FromQuery] OrderDirection orderDirection = OrderDirection.Ascending,
+        CancellationToken cancellationToken = default)
+    {
+        var page = new PageRequest(pageNumber, pageSize, searchText, orderBy, orderDirection);
+        var result = await publisherService.GetAllAsync(page, cancellationToken);
+        return Ok(ApiResponse.Succeeded(result, "Publishers retrieved."));
+    }
+
     [HttpPost]
     public async Task<ActionResult<ApiResponse<PublisherViewModel>>> Create(
         CreatePublisherRequest request,
@@ -55,11 +70,14 @@ public sealed class PublishersController(IPublisherService publisherService) : C
         Guid bookId,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = PageRequest.DefaultPageSize,
+        [FromQuery] string? searchText = null,
+        [FromQuery] string orderBy = "Id",
+        [FromQuery] OrderDirection orderDirection = OrderDirection.Ascending,
         CancellationToken cancellationToken = default)
     {
         var result = await publisherService.GetAllByBookIdAsync(bookId, cancellationToken);
         return Ok(ApiResponse.Succeeded(
-            ApiPage.Create(result, pageNumber, pageSize),
+            ApiPage.Create(result, new PageRequest(pageNumber, pageSize, searchText, orderBy, orderDirection)),
             "Book publishers retrieved."));
     }
 

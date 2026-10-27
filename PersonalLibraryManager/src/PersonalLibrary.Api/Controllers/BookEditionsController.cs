@@ -12,9 +12,24 @@ namespace PersonalLibrary.Api.Controllers;
 
 [ApiController]
 [Authorize]
-    [Route("api/book-editions")]
+[Route("api/book-editions")]
 public sealed class BookEditionsController(IBookEditionService editionService) : ControllerBase
 {
+    [HttpGet]
+    [ProducesResponseType<ApiResponse<PagedResult<BookEditionViewModel>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PagedResult<BookEditionViewModel>>>> GetAll(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = PageRequest.DefaultPageSize,
+        [FromQuery] string? searchText = null,
+        [FromQuery] string orderBy = "Id",
+        [FromQuery] OrderDirection orderDirection = OrderDirection.Ascending,
+        CancellationToken cancellationToken = default)
+    {
+        var page = new PageRequest(pageNumber, pageSize, searchText, orderBy, orderDirection);
+        var result = await editionService.GetAllAsync(page, cancellationToken);
+        return Ok(ApiResponse.Succeeded(result, "Book editions retrieved."));
+    }
+
     [HttpPost]
     public async Task<ActionResult<ApiResponse<BookEditionViewModel>>> Create(
         CreateBookEditionRequest request,
@@ -53,11 +68,14 @@ public sealed class BookEditionsController(IBookEditionService editionService) :
         Guid bookId,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = PageRequest.DefaultPageSize,
+        [FromQuery] string? searchText = null,
+        [FromQuery] string orderBy = "Id",
+        [FromQuery] OrderDirection orderDirection = OrderDirection.Ascending,
         CancellationToken cancellationToken = default)
     {
         var result = await editionService.GetAllByBookIdAsync(bookId, cancellationToken);
         return Ok(ApiResponse.Succeeded(
-            ApiPage.Create(result, pageNumber, pageSize),
+            ApiPage.Create(result, new PageRequest(pageNumber, pageSize, searchText, orderBy, orderDirection)),
             "Book editions retrieved."));
     }
 

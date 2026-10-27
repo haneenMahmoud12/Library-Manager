@@ -3,6 +3,7 @@ using PersonalLibrary.Application.Catalog.Exceptions;
 using PersonalLibrary.Application.Catalog.Models;
 using PersonalLibrary.Application.Catalog.Repositories;
 using PersonalLibrary.Application.Common.Authentication;
+using PersonalLibrary.Application.Common.Pagination;
 using PersonalLibrary.Domain.Catalog;
 
 namespace PersonalLibrary.Application.Catalog.Services;
@@ -14,6 +15,12 @@ public sealed class BookEditionService(
     IUnitOfWork unitOfWork,
     ICurrentUserContext currentUser) : IBookEditionService
 {
+    public async Task<PagedResult<BookEditionViewModel>> GetAllAsync(PageRequest page, CancellationToken cancellationToken = default)
+    {
+        var result = await editionRepository.GetPageAsync(page, cancellationToken);
+        return new PagedResult<BookEditionViewModel>(result.Items.Select(Map).ToList(), result.PageNumber, result.PageSize, result.TotalCount);
+    }
+
     public async Task<BookEditionViewModel> GetByIdAsync(Guid editionId, CancellationToken cancellationToken = default)
     {
         CatalogRules.ValidateId(editionId, "EditionId");

@@ -66,11 +66,14 @@ public sealed class AuthorsController(IAuthorService authorService) : Controller
         Guid bookId,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = PageRequest.DefaultPageSize,
+        [FromQuery] string? searchText = null,
+        [FromQuery] string orderBy = "Id",
+        [FromQuery] OrderDirection orderDirection = OrderDirection.Ascending,
         CancellationToken cancellationToken = default)
     {
         var result = await authorService.GetAllByBookIdAsync(bookId, cancellationToken);
         return Ok(ApiResponse.Succeeded(
-            ApiPage.Create(result, pageNumber, pageSize),
+            ApiPage.Create(result, new PageRequest(pageNumber, pageSize, searchText, orderBy, orderDirection)),
             "Book authors retrieved."));
     }
 
@@ -79,12 +82,14 @@ public sealed class AuthorsController(IAuthorService authorService) : Controller
     public async Task<ActionResult<ApiResponse<PagedResult<AuthorViewModel>>>> GetAll(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = PageRequest.DefaultPageSize,
+        [FromQuery] string? searchText = null,
+        [FromQuery] string orderBy = "Id",
+        [FromQuery] OrderDirection orderDirection = OrderDirection.Ascending,
         CancellationToken cancellationToken = default)
     {
-        var result = await authorService.GetAllAsync(cancellationToken);
-        return Ok(ApiResponse.Succeeded(
-            ApiPage.Create(result, pageNumber, pageSize),
-            "Authors retrieved."));
+        var page = new PageRequest(pageNumber, pageSize, searchText, orderBy, orderDirection);
+        var result = await authorService.GetAllAsync(page, cancellationToken);
+        return Ok(ApiResponse.Succeeded(result, "Authors retrieved."));
     }
 
     private static IReadOnlyDictionary<string, ApiLink> AuthorLinks(Guid authorId) =>

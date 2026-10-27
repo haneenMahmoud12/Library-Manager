@@ -67,7 +67,7 @@ public sealed class AuthController(
     {
         var encodedUserId = HtmlEncoder.Default.Encode(userId.ToString("D"));
         var encodedToken = HtmlEncoder.Default.Encode(token);
-        const string action = "/api/auth/email-confirmations";
+        const string action = "/api/auth/email-confirmations/browser";
         var html = $$"""
             <!doctype html>
             <html lang="en">
@@ -102,7 +102,7 @@ public sealed class AuthController(
     }
 
     [AllowAnonymous]
-    [HttpPost("email-confirmations")]
+    [HttpPost("email-confirmations/browser")]
     [Consumes("application/x-www-form-urlencoded")]
     [Produces("text/html")]
     public async Task<ContentResult> ConfirmEmailFromBrowser(
