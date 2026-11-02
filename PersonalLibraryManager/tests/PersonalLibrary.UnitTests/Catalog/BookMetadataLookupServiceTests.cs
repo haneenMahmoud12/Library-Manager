@@ -197,6 +197,8 @@ public sealed class BookMetadataLookupServiceTests
     private sealed class StubBookRepository : UnsupportedRepository<Book>, IBookRepository
     {
         public Book? Added { get; private set; }
+        public Task<List<Book>> GetAllByTitleWithDetailsAsync(string title, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new List<Book>());
         public Task<List<Book>> GetAllByTitleForUpdateAsync(string title, CancellationToken cancellationToken = default) =>
             Task.FromResult(new List<Book>());
         public Task<Book?> GetByIdWithDetailsAsync(Guid bookId, CancellationToken cancellationToken = default) =>

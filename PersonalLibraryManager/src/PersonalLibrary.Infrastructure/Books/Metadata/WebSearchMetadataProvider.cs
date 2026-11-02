@@ -17,7 +17,9 @@ internal sealed class WebSearchMetadataProvider(
         values. If a field cannot be verified, return null. If you cannot reliably identify
         the book, set found to false, return null for nullable metadata fields, and return
         empty authors and sources arrays. Prefer publishers, booksellers, library catalogs,
-        and other bibliographic sources. Every source URL must support the returned metadata.
+        and other bibliographic sources. Stop searching as soon as one authoritative source
+        clearly confirms the requested ISBN. Return exactly that one source URL; do not
+        collect additional sources. The source must support the returned metadata.
         """;
 
     private static readonly JsonElement OutputSchema = CreateOutputSchema();
@@ -45,7 +47,7 @@ internal sealed class WebSearchMetadataProvider(
                 model = options.Value.OpenAiModel,
                 instructions = Instructions,
                 input = $"ISBN: {normalizedIsbn}",
-                tools = new[] { new { type = "web_search", search_context_size = "medium" } },
+                tools = new[] { new { type = "web_search", search_context_size = "low" } },
                 tool_choice = "required",
                 include = new[] { "web_search_call.action.sources" },
                 text = new
@@ -89,8 +91,8 @@ internal sealed class WebSearchMetadataProvider(
         if (!MatchesRequestedIsbn(normalizedIsbn, result.Edition.Isbn10, result.Edition.Isbn13))
             return null;
 
-        var sources = ExtractVerifiedSources(root);
-        if (sources.Count == 0)
+        var source = ExtractFirstVerifiedSource(root);
+        if (source is null)
             return null;
 
         return new BookMetadata(
@@ -114,9 +116,9 @@ internal sealed class WebSearchMetadataProvider(
             new BookMetadataProvenance(
                 Name,
                 root.TryGetProperty("id", out var responseId) ? responseId.GetString() : null,
-                sources[0].Url,
+                source.Url,
                 true,
-                sources));
+                [source]));
     }
 
     private static string? GetOutputText(JsonElement root)
@@ -149,22 +151,14 @@ internal sealed class WebSearchMetadataProvider(
         return null;
     }
 
-    private static List<BookMetadataSourceReference> ExtractVerifiedSources(JsonElement root)
+    private static BookMetadataSourceReference? ExtractFirstVerifiedSource(JsonElement root)
     {
-        var sources = new Dictionary<string, BookMetadataSourceReference>(StringComparer.OrdinalIgnoreCase);
         if (!root.TryGetProperty("output", out var output) || output.ValueKind != JsonValueKind.Array)
-            return [];
+            return null;
 
+        // Prefer a source the model actually cited in its answer.
         foreach (var item in output.EnumerateArray())
         {
-            if (item.TryGetProperty("action", out var action) &&
-                action.TryGetProperty("sources", out var actionSources) &&
-                actionSources.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var source in actionSources.EnumerateArray())
-                    AddSource(source, sources);
-            }
-
             if (!item.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array)
                 continue;
 
@@ -178,35 +172,52 @@ internal sealed class WebSearchMetadataProvider(
 
                 foreach (var annotation in annotations.EnumerateArray())
                 {
-                    if (annotation.TryGetProperty("url_citation", out var citation))
-                        AddSource(citation, sources);
-                    else
-                        AddSource(annotation, sources);
+                    var candidate = annotation.TryGetProperty("url_citation", out var citation)
+                        ? CreateSource(citation)
+                        : CreateSource(annotation);
+                    if (candidate is not null)
+                        return candidate;
                 }
             }
         }
 
-        return sources.Values.ToList();
+        // Fall back to the first source returned by the web-search call.
+        foreach (var item in output.EnumerateArray())
+        {
+            if (!item.TryGetProperty("action", out var action) ||
+                !action.TryGetProperty("sources", out var actionSources) ||
+                actionSources.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (var actionSource in actionSources.EnumerateArray())
+            {
+                var candidate = CreateSource(actionSource);
+                if (candidate is not null)
+                    return candidate;
+            }
+        }
+
+        return null;
     }
 
-    private static void AddSource(
-        JsonElement source,
-        IDictionary<string, BookMetadataSourceReference> sources)
+    private static BookMetadataSourceReference? CreateSource(JsonElement source)
     {
         if (!source.TryGetProperty("url", out var urlProperty))
-            return;
+            return null;
 
         var url = urlProperty.GetString();
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
             uri.Scheme is not ("http" or "https"))
         {
-            return;
+            return null;
         }
 
         var title = source.TryGetProperty("title", out var titleProperty)
             ? Normalize(titleProperty.GetString())
             : null;
-        sources.TryAdd(uri.AbsoluteUri, new BookMetadataSourceReference(uri.AbsoluteUri, title));
+        return new BookMetadataSourceReference(uri.AbsoluteUri, title);
     }
 
     private static bool MatchesRequestedIsbn(string requested, string? isbn10, string? isbn13)
@@ -282,6 +293,7 @@ internal sealed class WebSearchMetadataProvider(
                 },
                 "sources": {
                   "type": "array",
+                  "maxItems": 1,
                   "items": {
                     "type": "object",
                     "additionalProperties": false,

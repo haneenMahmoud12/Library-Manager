@@ -33,6 +33,18 @@ internal sealed class BookCopyRepository(ApplicationDbContext context)
             .OrderBy(copy => copy.Id)
             .ToListAsync(cancellationToken);
 
+    public Task<List<BookCopy>> GetAllByLibraryAndBookIdAsync(
+        Guid libraryId,
+        Guid bookId,
+        CancellationToken cancellationToken = default) =>
+        WithDetails()
+            .Where(copy =>
+                copy.LibraryId == libraryId &&
+                copy.BookEdition.BookId == bookId)
+            .OrderBy(copy => copy.BookEditionId)
+            .ThenBy(copy => copy.Id)
+            .ToListAsync(cancellationToken);
+
     private IQueryable<BookCopy> WithDetails() =>
         Context.BookCopies.AsNoTracking()
             .Include(copy => copy.BookEdition)

@@ -1,5 +1,6 @@
 using System.Data;
 using PersonalLibrary.Application.Abstractions;
+using PersonalLibrary.Application.Catalog.Exceptions;
 using PersonalLibrary.Application.Catalog.Repositories;
 using PersonalLibrary.Application.Catalog.Metadata;
 using PersonalLibrary.Application.Catalog.Services;
@@ -39,13 +40,16 @@ public sealed class LibraryBookOwnershipTests
         var result = await service.CheckOwnershipAsync(library.Id, "978-0-451-52493-5");
 
         Assert.True(result.IsOwned);
+        Assert.False(result.OwnsDifferentEdition);
+        Assert.True(result.IsBookOwned);
+        Assert.Equal("ExactEditionOwned", result.OwnershipStatus);
         Assert.Equal(2, result.CopyCount);
         Assert.Equal(edition.BookId, result.BookId);
         Assert.Equal(edition.Id, result.BookEditionId);
         Assert.Equal(2, result.Copies.Count);
         Assert.NotEqual(result.Copies[0].Id, result.Copies[1].Id);
         Assert.Equal(library.Id, copyRepository.LastLibraryId);
-        Assert.Equal(edition.Id, copyRepository.LastEditionId);
+        Assert.Equal(edition.BookId, copyRepository.LastBookId);
     }
 
     [Fact]
@@ -63,9 +67,103 @@ public sealed class LibraryBookOwnershipTests
         var result = await service.CheckOwnershipAsync(library.Id, Isbn);
 
         Assert.False(result.IsOwned);
+        Assert.False(result.OwnsDifferentEdition);
+        Assert.False(result.IsBookOwned);
+        Assert.Equal("NotOwned", result.OwnershipStatus);
         Assert.Equal(0, result.CopyCount);
         Assert.Equal(edition.Id, result.BookEditionId);
         Assert.Empty(result.Copies);
+    }
+
+    [Fact]
+    public async Task CheckOwnershipAsync_returns_unknown_when_the_isbn_is_not_in_the_catalogue()
+    {
+        var userId = Guid.NewGuid();
+        var library = CreateLibrary(userId);
+        var service = CreateService(
+            library,
+            CreateEdition(),
+            new StubBookCopyRepository([]),
+            userId);
+
+        var result = await service.CheckOwnershipAsync(library.Id, "9780141036144");
+
+        Assert.False(result.CanDetermineOwnership);
+        Assert.Equal("UnknownEdition", result.OwnershipStatus);
+        Assert.Null(result.BookId);
+        Assert.Null(result.BookEditionId);
+    }
+
+    [Fact]
+    public async Task CheckOwnershipAsync_looks_up_an_unknown_isbn_and_matches_an_owned_book()
+    {
+        var userId = Guid.NewGuid();
+        var library = CreateLibrary(userId);
+        var author = new Author { Id = Guid.NewGuid(), Name = "George Orwell" };
+        var book = new Book { Id = Guid.NewGuid(), Title = "Nineteen Eighty-Four" };
+        book.BookAuthors.Add(new BookAuthor
+        {
+            BookId = book.Id,
+            AuthorId = author.Id,
+            Book = book,
+            Author = author,
+            AuthorOrder = 1
+        });
+        var ownedEdition = CreateEdition(book);
+        var copyRepository = new StubBookCopyRepository([CreateCopy(library.Id, ownedEdition)]);
+        var lookupMetadata = new BookMetadata(
+            book.Title,
+            null,
+            null,
+            "en",
+            1949,
+            [new BookMetadataAuthor(author.Name)],
+            new BookEditionMetadata(null, "9780141036144", null, null, null, null, null),
+            new BookMetadataProvenance("Test", null, null));
+        var service = CreateService(
+            library,
+            ownedEdition,
+            copyRepository,
+            userId,
+            lookupMetadata,
+            [book]);
+
+        var result = await service.CheckOwnershipAsync(library.Id, "9780141036144");
+
+        Assert.True(result.CanDetermineOwnership);
+        Assert.False(result.IsOwned);
+        Assert.True(result.OwnsDifferentEdition);
+        Assert.Equal("DifferentEditionOwned", result.OwnershipStatus);
+        Assert.Equal(book.Id, result.BookId);
+        Assert.Null(result.BookEditionId);
+        Assert.Equal(ownedEdition.Id, Assert.Single(result.DifferentEditionCopies).BookEditionId);
+    }
+
+    [Fact]
+    public async Task CheckOwnershipAsync_returns_copies_of_different_editions_of_the_same_book()
+    {
+        var userId = Guid.NewGuid();
+        var library = CreateLibrary(userId);
+        var requestedEdition = CreateEdition();
+        var ownedEdition = CreateEdition(requestedEdition.Book);
+        ownedEdition.Isbn13 = "9780141036144";
+        var ownedCopy = CreateCopy(library.Id, ownedEdition);
+        var service = CreateService(
+            library,
+            requestedEdition,
+            new StubBookCopyRepository([ownedCopy]),
+            userId);
+
+        var result = await service.CheckOwnershipAsync(library.Id, Isbn);
+
+        Assert.False(result.IsOwned);
+        Assert.True(result.OwnsDifferentEdition);
+        Assert.True(result.IsBookOwned);
+        Assert.Equal("DifferentEditionOwned", result.OwnershipStatus);
+        Assert.Equal(0, result.CopyCount);
+        Assert.Equal(1, result.DifferentEditionCopyCount);
+        Assert.Empty(result.Copies);
+        Assert.Equal(ownedEdition.Id, Assert.Single(result.DifferentEditionCopies).BookEditionId);
     }
 
     [Fact]
@@ -187,12 +285,15 @@ public sealed class LibraryBookOwnershipTests
         Library library,
         BookEdition edition,
         StubBookCopyRepository copyRepository,
-        Guid userId) =>
+        Guid userId,
+        BookMetadata? lookupMetadata = null,
+        IReadOnlyList<Book>? books = null) =>
         new(
             new StubLibraryRepository(library),
             copyRepository,
             new StubEditionRepository(edition),
-            new StubMetadataLookupService(edition),
+            new StubBookRepository(books ?? []),
+            new StubMetadataLookupService(edition, lookupMetadata),
             new StubUnitOfWork(),
             new StubCurrentUserContext(userId));
 
@@ -211,9 +312,9 @@ public sealed class LibraryBookOwnershipTests
         return library;
     }
 
-    private static BookEdition CreateEdition()
+    private static BookEdition CreateEdition(Book? book = null)
     {
-        var book = new Book { Id = Guid.NewGuid(), Title = "Nineteen Eighty-Four" };
+        book ??= new Book { Id = Guid.NewGuid(), Title = "Nineteen Eighty-Four" };
         return new BookEdition
         {
             Id = Guid.NewGuid(),
@@ -281,11 +382,32 @@ public sealed class LibraryBookOwnershipTests
             throw new NotSupportedException();
     }
 
+    private sealed class StubBookRepository(IReadOnlyList<Book> books)
+        : UnsupportedRepository<Book>, IBookRepository
+    {
+        public Task<List<Book>> GetAllByTitleWithDetailsAsync(
+            string title,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(books
+                .Where(book => string.Equals(book.Title, title, StringComparison.OrdinalIgnoreCase))
+                .ToList());
+
+        public Task<Book?> GetByIdWithDetailsAsync(Guid bookId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public Task<Book?> GetForUpdateAsync(Guid bookId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public Task<List<Book>> GetAllByTitleForUpdateAsync(string title, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public Task<List<Book>> GetAllByAuthorIdAsync(Guid authorId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
     private sealed class StubBookCopyRepository(List<BookCopy> copies)
         : UnsupportedRepository<BookCopy>, IBookCopyRepository
     {
         public Guid? LastLibraryId { get; private set; }
         public Guid? LastEditionId { get; private set; }
+        public Guid? LastBookId { get; private set; }
         public BookCopy? AddedCopy { get; private set; }
         public int CopyCount => copies.Count;
 
@@ -313,15 +435,43 @@ public sealed class LibraryBookOwnershipTests
             LastEditionId = bookEditionId;
             return Task.FromResult(copies);
         }
+
+        public Task<List<BookCopy>> GetAllByLibraryAndBookIdAsync(
+            Guid libraryId,
+            Guid bookId,
+            CancellationToken cancellationToken = default)
+        {
+            LastLibraryId = libraryId;
+            LastBookId = bookId;
+            return Task.FromResult(copies
+                .Where(copy =>
+                    copy.LibraryId == libraryId &&
+                    copy.BookEdition.BookId == bookId)
+                .ToList());
+        }
     }
 
-    private sealed class StubMetadataLookupService(BookEdition edition)
+    private sealed class StubMetadataLookupService(
+        BookEdition edition,
+        BookMetadata? lookupMetadata)
         : IBookMetadataLookupService
     {
         public Task<BookMetadataLookupResult> PreviewByIsbnAsync(
             string isbn,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            CancellationToken cancellationToken = default)
+        {
+            if (lookupMetadata is null)
+                throw new BookMetadataNotFoundException(isbn);
+
+            return Task.FromResult(new BookMetadataLookupResult(
+                false,
+                null,
+                null,
+                lookupMetadata.Provenance.RequiresReview,
+                null,
+                lookupMetadata.Provenance.Sources ?? [],
+                lookupMetadata));
+        }
 
         public Task<BookMetadataLookupResult> ImportAsync(
             string isbn,

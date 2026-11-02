@@ -195,5 +195,9 @@ static Task WriteFailureResponseAsync(
             code,
             message,
             traceId: context.TraceIdentifier),
-        context.RequestAborted);
+        options: null,
+        contentType: "application/problem+json",
+        cancellationToken: context.RequestAborted);
 }
+
+public partial class Program;

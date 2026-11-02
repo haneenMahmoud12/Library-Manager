@@ -18,6 +18,7 @@ public sealed class LibraryBookService(
     ILibraryRepository libraryRepository,
     IBookCopyRepository bookCopyRepository,
     IBookEditionRepository editionRepository,
+    IBookRepository bookRepository,
     IBookMetadataLookupService metadataLookupService,
     IUnitOfWork unitOfWork,
     ICurrentUserContext currentUser) : ILibraryBookService
@@ -115,31 +116,87 @@ public sealed class LibraryBookService(
         var edition = await editionRepository.GetByIsbnWithDetailsAsync(
             normalizedIsbn,
             cancellationToken);
-        if (edition is null)
+        var bookId = edition?.BookId;
+        var requestedEditionId = edition?.Id;
+
+        if (bookId is null)
         {
-            return new BookOwnershipResult(
-                normalizedIsbn,
-                false,
-                0,
-                null,
-                null,
-                []);
+            try
+            {
+                var lookup = await metadataLookupService.PreviewByIsbnAsync(
+                    normalizedIsbn,
+                    cancellationToken);
+                bookId = lookup.BookId;
+                requestedEditionId = lookup.BookEditionId;
+
+                if (bookId is null)
+                {
+                    var matchedBook = await MatchExistingBookAsync(
+                        lookup.Metadata,
+                        cancellationToken);
+                    bookId = matchedBook?.Id;
+                }
+            }
+            catch (BookMetadataNotFoundException)
+            {
+                return UnknownOwnership(normalizedIsbn);
+            }
         }
 
-        var copies = await bookCopyRepository.GetAllByLibraryAndBookEditionIdAsync(
+        if (bookId is null)
+            return UnknownOwnership(normalizedIsbn);
+
+        var bookCopies = await bookCopyRepository.GetAllByLibraryAndBookIdAsync(
             libraryId,
-            edition.Id,
+            bookId.Value,
             cancellationToken);
-        var copyViewModels = copies.Select(Map).ToList();
+        var exactEditionCopies = bookCopies
+            .Where(copy => requestedEditionId.HasValue && copy.BookEditionId == requestedEditionId.Value)
+            .Select(Map)
+            .ToList();
+        var differentEditionCopies = bookCopies
+            .Where(copy => !requestedEditionId.HasValue || copy.BookEditionId != requestedEditionId.Value)
+            .Select(Map)
+            .ToList();
 
         return new BookOwnershipResult(
             normalizedIsbn,
-            copyViewModels.Count > 0,
-            copyViewModels.Count,
-            edition.BookId,
-            edition.Id,
-            copyViewModels);
+            exactEditionCopies.Count > 0,
+            differentEditionCopies.Count > 0,
+            exactEditionCopies.Count,
+            differentEditionCopies.Count,
+            bookId,
+            requestedEditionId,
+            exactEditionCopies,
+            differentEditionCopies);
     }
+
+    private async Task<Book?> MatchExistingBookAsync(
+        BookMetadata metadata,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(metadata.Title) || metadata.Authors is null || metadata.Authors.Count == 0)
+            return null;
+
+        var candidates = await bookRepository.GetAllByTitleWithDetailsAsync(
+            metadata.Title.Trim(),
+            cancellationToken);
+        var metadataAuthors = metadata.Authors
+            .Where(author => !string.IsNullOrWhiteSpace(author.Name))
+            .Select(author => author.Name.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (metadataAuthors.Count == 0)
+            return null;
+
+        return candidates.FirstOrDefault(book =>
+            book.BookAuthors
+                .Select(bookAuthor => bookAuthor.Author.Name.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+                .SetEquals(metadataAuthors));
+    }
+
+    private static BookOwnershipResult UnknownOwnership(string normalizedIsbn) =>
+        new(normalizedIsbn, false, false, 0, 0, null, null, [], []);
 
     public async Task<LibraryBookViewModel> ImportAsync(
         Guid libraryId,

@@ -65,7 +65,9 @@ public sealed class GlobalExceptionMiddleware(
                 mapped.Message,
                 errors: mapped.Details,
                 traceId: context.TraceIdentifier),
-            context.RequestAborted);
+            options: null,
+            contentType: "application/problem+json",
+            cancellationToken: context.RequestAborted);
     }
 
     private static ExceptionResponse MapException(Exception exception) => exception switch

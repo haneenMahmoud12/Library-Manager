@@ -19,6 +19,14 @@ internal sealed class BookRepository(ApplicationDbContext context)
     public Task<Book?> GetForUpdateAsync(Guid bookId, CancellationToken cancellationToken = default) =>
         DetailsQuery(true).SingleOrDefaultAsync(book => book.Id == bookId, cancellationToken);
 
+    public Task<List<Book>> GetAllByTitleWithDetailsAsync(
+        string title,
+        CancellationToken cancellationToken = default) =>
+        DetailsQuery(false)
+            .Where(book => book.Title == title)
+            .OrderBy(book => book.Id)
+            .ToListAsync(cancellationToken);
+
     public Task<List<Book>> GetAllByTitleForUpdateAsync(
         string title,
         CancellationToken cancellationToken = default) =>

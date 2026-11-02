@@ -21,5 +21,10 @@ namespace PersonalLibrary.Application.Libraries.Repositories
             Guid libraryId,
             Guid bookEditionId,
             CancellationToken cancellationToken = default);
+
+        Task<List<BookCopy>> GetAllByLibraryAndBookIdAsync(
+            Guid libraryId,
+            Guid bookId,
+            CancellationToken cancellationToken = default);
     }
 }

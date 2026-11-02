@@ -96,6 +96,7 @@ public sealed class LibraryBooksController(ILibraryBookService libraryBookServic
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<ApiResponse<BookOwnershipResult>>> CheckOwnership(
         Guid libraryId,
         string isbn,
