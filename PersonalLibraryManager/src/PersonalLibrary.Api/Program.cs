@@ -95,7 +95,7 @@ builder.Services
                 "Request validation failed",
                 "One or more validation errors occurred.",
                 details,
-                context.HttpContext.TraceIdentifier))
+                traceId: context.HttpContext.TraceIdentifier))
             {
                 ContentTypes = { "application/problem+json" }
             };

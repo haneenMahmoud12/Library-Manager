@@ -10,6 +10,7 @@ public static class ApiProblemDetails
         string title,
         string? detail = null,
         IReadOnlyDictionary<string, string[]>? errors = null,
+        IReadOnlyDictionary<string, ApiLink>? links = null,
         string? traceId = null)
     {
         var problem = new ProblemDetails
@@ -23,6 +24,8 @@ public static class ApiProblemDetails
         problem.Extensions["code"] = code;
         if (errors is not null)
             problem.Extensions["errors"] = errors;
+        if (links is not null)
+            problem.Extensions["links"] = links;
         if (!string.IsNullOrWhiteSpace(traceId))
             problem.Extensions["traceId"] = traceId;
 

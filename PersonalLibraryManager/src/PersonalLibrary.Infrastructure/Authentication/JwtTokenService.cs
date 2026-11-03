@@ -43,6 +43,10 @@ internal sealed class JwtTokenService(
         CancellationToken cancellationToken = default)
     {
         var tokenHash = HashToken(refreshToken);
+
+        if (!context.Database.IsRelational())
+            return await RefreshWithoutTransactionAsync(tokenHash, cancellationToken);
+
         var strategy = context.Database.CreateExecutionStrategy();
 
         return await strategy.ExecuteAsync(async () =>
@@ -115,6 +119,23 @@ internal sealed class JwtTokenService(
         CancellationToken cancellationToken = default)
     {
         var tokenHash = HashToken(refreshToken);
+
+        if (!context.Database.IsRelational())
+        {
+            var storedToken = await context.RefreshTokens.SingleOrDefaultAsync(
+                token => token.TokenHash == tokenHash && token.UserId == userId,
+                cancellationToken);
+            if (storedToken is null)
+                return;
+
+            await RevokeActiveFamilyWithoutBulkUpdateAsync(
+                storedToken.UserId,
+                storedToken.FamilyId,
+                DateTime.UtcNow,
+                cancellationToken);
+            return;
+        }
+
         var strategy = context.Database.CreateExecutionStrategy();
 
         await strategy.ExecuteAsync(async () =>
@@ -142,6 +163,70 @@ internal sealed class JwtTokenService(
 
             await transaction.CommitAsync(cancellationToken);
         });
+    }
+
+    private async Task<TokenPairResult?> RefreshWithoutTransactionAsync(
+        string tokenHash,
+        CancellationToken cancellationToken)
+    {
+        var stored = await context.RefreshTokens.SingleOrDefaultAsync(
+            token => token.TokenHash == tokenHash,
+            cancellationToken);
+        if (stored is null)
+            return null;
+
+        var now = DateTime.UtcNow;
+        if (stored.RevokedAtUtc is not null)
+        {
+            if (stored.ReplacedByTokenId is not null)
+                await RevokeActiveFamilyWithoutBulkUpdateAsync(
+                    stored.UserId, stored.FamilyId, now, cancellationToken);
+            return null;
+        }
+
+        if (stored.ExpiresAtUtc <= now)
+            return null;
+
+        var identityUser = await userManager.FindByIdAsync(stored.UserId.ToString());
+        if (identityUser is null || !identityUser.EmailConfirmed)
+            return null;
+
+        var roles = await userManager.GetRolesAsync(identityUser);
+        var authenticatedUser = new AuthenticatedUserResult(
+            identityUser.Id,
+            identityUser.Email,
+            identityUser.DisplayName,
+            roles.ToArray(),
+            []);
+
+        var replacement = CreateRefreshToken(stored.UserId, stored.FamilyId, now);
+        stored.RevokedAtUtc = now;
+        stored.ReplacedByTokenId = replacement.StoredToken.Id;
+        context.RefreshTokens.Add(replacement.StoredToken);
+        await context.SaveChangesAsync(cancellationToken);
+
+        return CreateTokenPair(
+            authenticatedUser,
+            replacement.RawToken,
+            replacement.StoredToken.ExpiresAtUtc,
+            now);
+    }
+
+    private async Task RevokeActiveFamilyWithoutBulkUpdateAsync(
+        Guid userId,
+        Guid familyId,
+        DateTime revokedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var activeTokens = await context.RefreshTokens
+            .Where(token =>
+                token.UserId == userId &&
+                token.FamilyId == familyId &&
+                token.RevokedAtUtc == null)
+            .ToListAsync(cancellationToken);
+        foreach (var token in activeTokens)
+            token.RevokedAtUtc = revokedAtUtc;
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     private TokenPairResult CreateTokenPair(

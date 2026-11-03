@@ -113,6 +113,38 @@ public sealed class BookMetadataLookupServiceTests
         Assert.Equal(edition.Id, result.BookEditionId);
     }
 
+    [Fact]
+    public async Task ImportAsync_rechecks_isbn_inside_transaction_and_reuses_a_racing_edition()
+    {
+        var author = new Author { Id = Guid.NewGuid(), Name = "George Orwell" };
+        var book = new Book { Id = Guid.NewGuid(), Title = "Nineteen Eighty-Four" };
+        book.BookAuthors.Add(new BookAuthor
+        {
+            BookId = book.Id, AuthorId = author.Id, Book = book, Author = author, AuthorOrder = 1
+        });
+        var racingEdition = new BookEdition
+        {
+            Id = Guid.NewGuid(), BookId = book.Id, Book = book, Isbn13 = ValidIsbn
+        };
+        var editions = new StubEditionRepository(null, racingEdition);
+        var books = new StubBookRepository();
+        var authors = new StubAuthorRepository();
+        var publishers = new StubPublisherRepository();
+        var unitOfWork = new StubUnitOfWork();
+        var service = new BookMetadataLookupService(
+            editions, books, authors, publishers, new StubMetadataProvider(null), unitOfWork);
+
+        var result = await service.ImportAsync(ValidIsbn, CreateMetadata(), false);
+
+        Assert.Equal(2, editions.LookupCalls);
+        Assert.Equal(1, unitOfWork.TransactionCalls);
+        Assert.Equal(racingEdition.Id, result.BookEditionId);
+        Assert.Null(editions.Added);
+        Assert.Null(books.Added);
+        Assert.Null(authors.Added);
+        Assert.Null(publishers.Added);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("1234567890")]
@@ -181,12 +213,25 @@ public sealed class BookMetadataLookupServiceTests
         }
     }
 
-    private sealed class StubEditionRepository(BookEdition? existing)
+    private sealed class StubEditionRepository
         : UnsupportedRepository<BookEdition>, IBookEditionRepository
     {
+        private readonly Queue<BookEdition?> _lookups;
+
+        public StubEditionRepository(BookEdition? existing) =>
+            _lookups = new Queue<BookEdition?>([existing]);
+
+        public StubEditionRepository(BookEdition? first, BookEdition? second) =>
+            _lookups = new Queue<BookEdition?>([first, second]);
+
         public BookEdition? Added { get; private set; }
-        public Task<BookEdition?> GetByIsbnWithDetailsAsync(string isbn, CancellationToken cancellationToken = default) =>
-            Task.FromResult(existing);
+        public int LookupCalls { get; private set; }
+        public Task<BookEdition?> GetByIsbnWithDetailsAsync(string isbn, CancellationToken cancellationToken = default)
+        {
+            LookupCalls++;
+            var result = _lookups.Count > 1 ? _lookups.Dequeue() : _lookups.Peek();
+            return Task.FromResult(result);
+        }
         public Task<BookEdition?> GetByIdWithDetailsAsync(Guid editionId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
         public Task<List<BookEdition>> GetAllByBookIdAsync(Guid bookId, CancellationToken cancellationToken = default) =>

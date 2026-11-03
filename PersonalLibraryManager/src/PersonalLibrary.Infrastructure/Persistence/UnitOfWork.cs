@@ -17,6 +17,12 @@ internal sealed class UnitOfWork(ApplicationDbContext context) : IUnitOfWork
     {
         ArgumentNullException.ThrowIfNull(operation);
 
+        if (!context.Database.IsRelational())
+        {
+            await operation(cancellationToken);
+            return await context.SaveChangesAsync(cancellationToken);
+        }
+
         var strategy = context.Database.CreateExecutionStrategy();
 
         return await strategy.ExecuteAsync(async () =>

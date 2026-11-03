@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using PersonalLibrary.Application.Identity.Models;
 using PersonalLibrary.Application.Identity.Services;
+using PersonalLibrary.Application.Catalog.Metadata;
 using PersonalLibrary.Infrastructure.Persistence;
 
 namespace PersonalLibrary.IntegrationTests.Identity;
@@ -19,6 +20,7 @@ public sealed class RegistrationApiFactory : WebApplicationFactory<Program>
     private readonly InMemoryDatabaseRoot _databaseRoot = new();
 
     public RecordingEmailService Email { get; } = new();
+    public RecordingMetadataProvider Metadata { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -32,6 +34,9 @@ public sealed class RegistrationApiFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<IEmailService>();
             services.AddSingleton<IEmailService>(Email);
+
+            services.RemoveAll<IBookMetadataProvider>();
+            services.AddSingleton<IBookMetadataProvider>(Metadata);
         });
     }
 
@@ -42,6 +47,31 @@ public sealed class RegistrationApiFactory : WebApplicationFactory<Program>
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         context.Database.EnsureCreated();
         return host;
+    }
+}
+
+public sealed class RecordingMetadataProvider : IBookMetadataProvider
+{
+    private readonly ConcurrentDictionary<string, BookMetadata?> _results = new();
+    private readonly ConcurrentQueue<string> _requests = new();
+
+    public IReadOnlyCollection<string> Requests => _requests.ToArray();
+
+    public void SetResult(string isbn, BookMetadata? metadata)
+    {
+        if (metadata is null)
+            _results.TryRemove(isbn, out _);
+        else
+            _results[isbn] = metadata;
+    }
+
+    public Task<BookMetadata?> GetByIsbnAsync(
+        string isbn,
+        CancellationToken cancellationToken = default)
+    {
+        _requests.Enqueue(isbn);
+        _results.TryGetValue(isbn, out var result);
+        return Task.FromResult(result);
     }
 }
 

@@ -64,6 +64,7 @@ public sealed class GlobalExceptionMiddleware(
                 mapped.Code,
                 mapped.Message,
                 errors: mapped.Details,
+                links: mapped.Links,
                 traceId: context.TraceIdentifier),
             options: null,
             contentType: "application/problem+json",
@@ -89,7 +90,10 @@ public sealed class GlobalExceptionMiddleware(
         BookMetadataNotFoundException => new(
             StatusCodes.Status404NotFound,
             "BookMetadataNotFound",
-            "No book metadata was found for the supplied ISBN."),
+            "No book metadata was found for the supplied ISBN. You can enter the book manually.",
+            Links: ApiLinks.Actions(
+                ("createBook", "/api/books", HttpMethods.Post),
+                ("createEdition", "/api/book-editions", HttpMethods.Post))),
         BookMetadataProviderException => new(
             StatusCodes.Status503ServiceUnavailable,
             "BookMetadataProvidersUnavailable",
@@ -182,5 +186,6 @@ public sealed class GlobalExceptionMiddleware(
         int StatusCode,
         string Code,
         string Message,
-        IReadOnlyDictionary<string, string[]>? Details = null);
+        IReadOnlyDictionary<string, string[]>? Details = null,
+        IReadOnlyDictionary<string, ApiLink>? Links = null);
 }

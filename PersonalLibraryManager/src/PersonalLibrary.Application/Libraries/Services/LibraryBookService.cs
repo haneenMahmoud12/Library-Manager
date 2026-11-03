@@ -259,10 +259,7 @@ public sealed class LibraryBookService(
                     IsSigned = request.IsSigned,
                     IsFavourite = request.IsFavourite,
                     PersonalNotes = NormalizeOptional(request.PersonalNotes),
-                    CreatedAt = DateTime.UtcNow,
-                    Library = library,
-                    BookEdition = resolvedEdition,
-                    Location = resolvedLocation
+                    CreatedAt = DateTime.UtcNow
                 };
 
                 bookCopyRepository.Add(createdCopy);
